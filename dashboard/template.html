@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Training Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3dd6c6;
+      --accent2: #ff6b6b;
+      --run: #4ecdc4;
+      --recovery: #a78bfa;
+      --activity: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
+    .meta { font-size: 0.8rem; color: var(--muted); }
+    nav.tabs {
+      display: flex;
+      gap: 0.25rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    nav.tabs button:hover { color: var(--text); }
+    nav.tabs button.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    main { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+    .panel { display: none; animation: fade 0.2s ease; }
+    .panel.active { display: block; }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+    .stat .label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.35rem;
+    }
+    .stat .value {
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+    .stat .sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+    .stat.accent .value { color: var(--accent); }
+    .stat.run .value { color: var(--run); }
+    .stat.recovery .value { color: var(--recovery); }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem 1.3rem;
+    }
+    .chart-card.full { grid-column: 1 / -1; }
+    .chart-card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.85rem;
+      color: var(--text);
+    }
+    .chart-wrap { position: relative; height: 260px; }
+    .chart-wrap.tall { height: 320px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .table-wrap h2 {
+      padding: 1rem 1.2rem 0.5rem;
+      font-size: 0.95rem;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    .section-note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 600px) {
+      main { padding: 1rem; }
+      .stat .value { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1>Training Dashboard</h1>
+      <div class="meta" id="header-meta"></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="overview" class="active">Overview</button>
+      <button role="tab" data-tab="running">Running</button>
+      <button role="tab" data-tab="recovery">Recovery</button>
+      <button role="tab" data-tab="activity">Activity</button>
+      <button role="tab" data-tab="workouts">Workouts</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="overview" class="panel active" role="tabpanel">
+      <div class="stats" id="overview-stats"></div>
+      <p class="section-note">Weekly run volume over the last six months.</p>
+      <div class="charts">
+        <div class="chart-card full">
+          <h2>Weekly Mileage</h2>
+          <div class="chart-wrap"><canvas id="chart-overview-weekly"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="running" class="panel" role="tabpanel">
+      <div class="stats" id="running-stats"></div>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Weekly Mileage (all time)</h2>
+          <div class="chart-wrap tall"><canvas id="chart-running-weekly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Monthly Mileage</h2>
+          <div class="chart-wrap tall"><canvas id="chart-running-monthly"></canvas></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <h2>Recent Runs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Miles</th><th>Duration</th><th>Pace</th>
+              <th>Avg HR</th><th>Max HR</th><th>Cal</th><th>Route</th>
+            </tr>
+          </thead>
+          <tbody id="recent-runs-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="recovery" class="panel" role="tabpanel">
+      <p class="section-note" id="recovery-note"></p>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Resting Heart Rate</h2>
+          <div class="chart-wrap"><canvas id="chart-resting-hr"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>HRV (SDNN)</h2>
+          <div class="chart-wrap"><canvas id="chart-hrv"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>VO₂ Max</h2>
+          <div class="chart-wrap"><canvas id="chart-vo2"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Sleep (hours)</h2>
+          <div class="chart-wrap"><canvas id="chart-sleep"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="activity" class="panel" role="tabpanel">
+      <p class="section-note" id="activity-note"></p>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Daily Steps</h2>
+          <div class="chart-wrap"><canvas id="chart-steps"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Active Energy (kcal)</h2>
+          <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
+        </div>
+        <div class="chart-card full">
+          <h2>Exercise Minutes vs Goal</h2>
+          <div class="chart-wrap"><canvas id="chart-exercise"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="workouts" class="panel" role="tabpanel">
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Workouts by Type</h2>
+          <div class="chart-wrap"><canvas id="chart-workout-types"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Time by Activity</h2>
+          <div class="chart-wrap"><canvas id="chart-workout-hours"></canvas></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <h2>Activity Breakdown</h2>
+        <table>
+          <thead>
+            <tr><th>Activity</th><th>Count</th><th>Miles</th><th>Hours</th></tr>
+          </thead>
+          <tbody id="workout-types-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const DATA = __DASHBOARD_DATA__;
+    const charts = {};
+
+    const COLORS = {
+      accent: "#3dd6c6",
+      run: "#4ecdc4",
+      recovery: "#a78bfa",
+      activity: "#fbbf24",
+      accent2: "#ff6b6b",
+      muted: "#8b9cb3",
+      grid: "rgba(45, 58, 79, 0.6)",
+    };
+
+    const chartDefaults = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: COLORS.muted, boxWidth: 12, padding: 14 } },
+        tooltip: {
+          backgroundColor: "#1a2332",
+          borderColor: "#2d3a4f",
+          borderWidth: 1,
+          titleColor: "#e8edf4",
+          bodyColor: "#8b9cb3",
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: COLORS.muted, maxRotation: 45, autoSkip: true, maxTicksLimit: 12 },
+          grid: { color: COLORS.grid },
+        },
+        y: {
+          ticks: { color: COLORS.muted },
+          grid: { color: COLORS.grid },
+        },
+      },
+    };
+
+    function fmt(n, digits = 1) {
+      if (n == null || Number.isNaN(n)) return "—";
+      return Number(n).toFixed(digits);
+    }
+
+    function fmtPace(minPerMile) {
+      if (minPerMile == null) return "—";
+      const m = Math.floor(minPerMile);
+      const s = Math.round((minPerMile - m) * 60);
+      return `${m}:${String(s).padStart(2, "0")}/mi`;
+    }
+
+    function activityLabel(type) {
+      const map = {
+        HKWorkoutActivityTypeRunning: "Running",
+        HKWorkoutActivityTypeWalking: "Walking",
+        HKWorkoutActivityTypeCycling: "Cycling",
+        HKWorkoutActivityTypeSwimming: "Swimming",
+        HKWorkoutActivityTypeHiking: "Hiking",
+        HKWorkoutActivityTypeFunctionalStrengthTraining: "Strength",
+        HKWorkoutActivityTypeTraditionalStrengthTraining: "Strength",
+        HKWorkoutActivityTypeYoga: "Yoga",
+        HKWorkoutActivityTypeElliptical: "Elliptical",
+        HKWorkoutActivityTypeStairClimbing: "Stairs",
+        HKWorkoutActivityTypeRowing: "Rowing",
+      };
+      return map[type] || type.replace("HKWorkoutActivityType", "");
+    }
+
+    function statCard(label, value, sub = "", cls = "") {
+      return `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+    }
+
+    function renderHeader() {
+      const m = DATA.meta;
+      const parts = [];
+      if (m.data_start && m.data_end) parts.push(`${m.data_start} → ${m.data_end}`);
+      if (m.export_date) parts.push(`Export: ${m.export_date.slice(0, 10)}`);
+      parts.push(`Updated: ${m.generated_at}`);
+      document.getElementById("header-meta").textContent = parts.join(" · ");
+    }
+
+    function renderOverview() {
+      const o = DATA.overview;
+      document.getElementById("overview-stats").innerHTML = [
+        statCard("Total Runs", o.run_count, `${fmt(o.total_miles, 0)} mi lifetime`, "run"),
+        statCard("Run Hours", fmt(o.total_hours, 0), "all time", "run"),
+        statCard("All Workouts", o.workout_count, "every activity type"),
+        statCard("Resting HR", fmt(o.latest_resting_hr, 0), o.latest_recovery_date || "", "recovery"),
+        statCard("HRV", fmt(o.latest_hrv, 0), "SDNN ms", "recovery"),
+        statCard("VO₂ Max", fmt(o.latest_vo2, 1), "ml/kg/min", "accent"),
+      ].join("");
+
+      const weekly = o.weekly_miles || [];
+      makeChart("chart-overview-weekly", "bar", {
+        labels: weekly.map(w => w.week),
+        datasets: [{
+          label: "Miles",
+          data: weekly.map(w => w.miles),
+          backgroundColor: COLORS.run + "cc",
+          borderColor: COLORS.run,
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      });
+    }
+
+    function renderRunning() {
+      const r = DATA.running;
+      const totalMiles = r.monthly.reduce((s, m) => s + (m.miles || 0), 0);
+      document.getElementById("running-stats").innerHTML = [
+        statCard("Recent Runs", r.recent_runs.length, "last 30 logged"),
+        statCard("Months Tracked", r.monthly.length, `${fmt(totalMiles, 0)} mi in chart`),
+        statCard("Weeks Tracked", r.weekly.length, "with at least one run"),
+      ].join("");
+
+      makeChart("chart-running-weekly", "bar", {
+        labels: r.weekly.map(w => w.week),
+        datasets: [{
+          label: "Miles",
+          data: r.weekly.map(w => w.miles),
+          backgroundColor: COLORS.run + "99",
+          borderColor: COLORS.run,
+          borderWidth: 1,
+        }],
+      });
+
+      makeChart("chart-running-monthly", "line", {
+        labels: r.monthly.map(m => m.month),
+        datasets: [{
+          label: "Miles",
+          data: r.monthly.map(m => m.miles),
+          borderColor: COLORS.accent,
+          backgroundColor: COLORS.accent + "33",
+          fill: true,
+          tension: 0.25,
+          pointRadius: 2,
+        }],
+      });
+
+      document.getElementById("recent-runs-body").innerHTML = r.recent_runs.map(row => `
+        <tr>
+          <td>${row.local_date}</td>
+          <td>${fmt(row.miles, 2)}</td>
+          <td>${fmt(row.duration_min, 0)} min</td>
+          <td>${fmtPace(row.pace_min_per_mile)}</td>
+          <td>${fmt(row.avg_hr, 0)}</td>
+          <td>${fmt(row.max_hr, 0)}</td>
+          <td>${row.energy_kcal ? Math.round(row.energy_kcal) : "—"}</td>
+          <td>${row.has_route ? '<span class="badge">GPS</span>' : "—"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderRecovery() {
+      const d = DATA.recovery.daily;
+      document.getElementById("recovery-note").textContent =
+        `Daily recovery metrics for the last ${DATA.meta.chart_days} days.`;
+
+      const labels = d.map(x => x.local_date);
+      const lineOpts = (label, data, color) => ({
+        labels,
+        datasets: [{
+          label,
+          data,
+          borderColor: color,
+          backgroundColor: color + "22",
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          spanGaps: true,
+        }],
+      });
+
+      makeChart("chart-resting-hr", "line", lineOpts("bpm", d.map(x => x.resting_hr), COLORS.accent2));
+      makeChart("chart-hrv", "line", lineOpts("ms", d.map(x => x.hrv_sdnn), COLORS.recovery));
+      makeChart("chart-vo2", "line", lineOpts("ml/kg/min", d.map(x => x.vo2_max), COLORS.accent));
+      makeChart("chart-sleep", "line", {
+        labels,
+        datasets: [
+          {
+            label: "Total",
+            data: d.map(x => x.sleep_hours),
+            borderColor: COLORS.recovery,
+            backgroundColor: COLORS.recovery + "22",
+            fill: true,
+            tension: 0.2,
+            pointRadius: 0,
+            spanGaps: true,
+          },
+          {
+            label: "Deep",
+            data: d.map(x => x.sleep_deep_hours),
+            borderColor: "#6366f1",
+            pointRadius: 0,
+            spanGaps: true,
+            tension: 0.2,
+          },
+          {
+            label: "REM",
+            data: d.map(x => x.sleep_rem_hours),
+            borderColor: "#22d3ee",
+            pointRadius: 0,
+            spanGaps: true,
+            tension: 0.2,
+          },
+        ],
+      });
+    }
+
+    function renderActivity() {
+      const d = DATA.activity.daily;
+      document.getElementById("activity-note").textContent =
+        `Steps, energy, and ring data for the last ${DATA.meta.chart_days} days.`;
+
+      const labels = d.map(x => x.local_date);
+      makeChart("chart-steps", "line", {
+        labels,
+        datasets: [{
+          label: "Steps",
+          data: d.map(x => x.steps),
+          borderColor: COLORS.activity,
+          backgroundColor: COLORS.activity + "22",
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          spanGaps: true,
+        }],
+      });
+
+      makeChart("chart-energy", "line", {
+        labels,
+        datasets: [{
+          label: "Active kcal",
+          data: d.map(x => x.active_energy_kcal),
+          borderColor: COLORS.accent2,
+          backgroundColor: COLORS.accent2 + "22",
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          spanGaps: true,
+        }],
+      });
+
+      makeChart("chart-exercise", "line", {
+        labels,
+        datasets: [
+          {
+            label: "Exercise min",
+            data: d.map(x => x.exercise_min),
+            borderColor: COLORS.run,
+            pointRadius: 0,
+            spanGaps: true,
+            tension: 0.2,
+          },
+          {
+            label: "Goal",
+            data: d.map(x => x.exercise_goal),
+            borderColor: COLORS.muted,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            spanGaps: true,
+            tension: 0.2,
+          },
+        ],
+      });
+    }
+
+    function renderWorkouts() {
+      const types = DATA.workouts.by_type.map(t => ({
+        ...t,
+        label: activityLabel(t.activity_type),
+      }));
+
+      makeChart("chart-workout-types", "doughnut", {
+        labels: types.map(t => t.label),
+        datasets: [{
+          data: types.map(t => t.count),
+          backgroundColor: [
+            COLORS.run, COLORS.accent, COLORS.recovery, COLORS.activity,
+            COLORS.accent2, "#6366f1", "#22d3ee", "#84cc16",
+          ],
+        }],
+      }, { scales: undefined });
+
+      makeChart("chart-workout-hours", "bar", {
+        labels: types.slice(0, 8).map(t => t.label),
+        datasets: [{
+          label: "Hours",
+          data: types.slice(0, 8).map(t => t.hours),
+          backgroundColor: COLORS.accent + "aa",
+          borderRadius: 4,
+        }],
+      });
+
+      document.getElementById("workout-types-body").innerHTML = types.map(t => `
+        <tr>
+          <td>${t.label}</td>
+          <td>${t.count}</td>
+          <td>${t.miles ? fmt(t.miles, 1) : "—"}</td>
+          <td>${fmt(t.hours, 1)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function makeChart(id, type, data, extraOpts = {}) {
+      const ctx = document.getElementById(id);
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(ctx, {
+        type,
+        data,
+        options: { ...chartDefaults, ...extraOpts },
+      });
+    }
+
+    document.querySelectorAll("nav.tabs button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    renderHeader();
+    renderOverview();
+    renderRunning();
+    renderRecovery();
+    renderActivity();
+    renderWorkouts();
+  </script>
+</body>
+</html>
