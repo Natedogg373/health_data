@@ -56,3 +56,20 @@ Open `../data/training.db` with any SQLite client. Useful views:
 - `v_weekly_training` — weekly run volume
 
 Training summaries for coaching review are written to `../data/summaries/`.
+
+## Deploy (static dashboard)
+
+`index.html` at the repo root is the published dashboard. Coolify (Railpack/Nixpacks) should treat this as a Node app:
+
+- **Install:** `npm install`
+- **Start command:** `npm start`
+- **Port:** `3000` (or set `PORT`; the start script uses `${PORT:-3000}`)
+
+Run the same locally:
+
+```bash
+npm install
+npm start
+```
+
+Then open http://localhost:3000. The page is prebuilt; `npm run build` is a no-op.
