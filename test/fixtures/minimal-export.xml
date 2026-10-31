@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HealthData locale="en_US">
+  <ExportDate value="2026-02-01 12:00:00 -0500"/>
+  <Me HKCharacteristicTypeIdentifierDateOfBirth="1990-05-01"
+      HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSexMale"
+      HKCharacteristicTypeIdentifierBloodType="HKBloodTypeOPositive"/>
+  <Workout workoutActivityType="HKWorkoutActivityTypeRunning"
+           duration="30" durationUnit="min"
+           totalDistance="3.1" totalDistanceUnit="mi"
+           totalEnergyBurned="350" totalEnergyBurnedUnit="kcal"
+           sourceName="Apple Watch"
+           sourceVersion="11.0"
+           startDate="2026-01-20 07:00:00 -0500"
+           endDate="2026-01-20 07:30:00 -0500"
+           creationDate="2026-01-20 07:30:00 -0500">
+    <WorkoutStatistics type="HKQuantityTypeIdentifierHeartRate"
+      startDate="2026-01-20 07:00:00 -0500"
+      endDate="2026-01-20 07:30:00 -0500"
+      average="145" minimum="120" maximum="168" unit="count/min"/>
+    <MetadataEntry key="HKIndoorWorkout" value="0"/>
+  </Workout>
+  <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" sourceVersion="11.0"
+    startDate="2026-01-20 06:00:00 -0500" endDate="2026-01-20 06:00:00 -0500"
+    value="53" unit="count/min"/>
+  <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" sourceVersion="11.0"
+    startDate="2026-01-20 06:00:00 -0500" endDate="2026-01-20 06:00:00 -0500"
+    value="44" unit="ms"/>
+  <Record type="HKQuantityTypeIdentifierVO2Max" sourceName="Apple Watch" sourceVersion="11.0"
+    startDate="2026-01-20 07:30:00 -0500" endDate="2026-01-20 07:30:00 -0500"
+    value="47.5" unit="mL/min·kg"/>
+  <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Apple Watch" sourceVersion="11.0"
+    startDate="2026-01-20 12:00:00 -0500" endDate="2026-01-20 12:00:00 -0500"
+    value="8500" unit="count"/>
+  <ActivitySummary dateComponents="2026-01-20 00:00:00 -0500"
+    activeEnergyBurned="500" activeEnergyBurnedGoal="600"
+    appleExerciseTime="35" appleExerciseTimeGoal="30"
+    appleStandHours="10" appleStandHoursGoal="12"/>
+</HealthData>

@@ -2,15 +2,17 @@
   "name": "health-data-dashboard",
   "version": "1.0.0",
   "private": true,
-  "description": "Static training dashboard served for Coolify / Nixpacks",
+  "description": "Training dashboard and read-only fitness API for Coolify",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
-    "start": "serve -s . -l tcp://0.0.0.0:${PORT:-3000}",
+    "start": "node --experimental-sqlite server/index.js",
+    "test": "node --experimental-sqlite --test test/api.test.js",
     "build": "echo 'index.html is prebuilt'"
   },
   "dependencies": {
-    "serve": "^14.2.5"
+    "express": "^4.21.2",
+    "multer": "^2.5.0"
   }
 }
