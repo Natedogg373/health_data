@@ -1,0 +1,16 @@
+{
+  "name": "health-data-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static training dashboard served for Coolify / Nixpacks",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "serve -s . -l tcp://0.0.0.0:${PORT:-3000}",
+    "build": "echo 'index.html is prebuilt'"
+  },
+  "dependencies": {
+    "serve": "^14.2.5"
+  }
+}
