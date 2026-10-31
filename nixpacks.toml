@@ -1,5 +1,8 @@
-# Force Node so requirements.txt / run.py are not treated as the web app.
+# Node is the web app; Python is needed to run the Apple Health importer.
 providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["...", "python312"]
 
 [start]
 cmd = "npm start"

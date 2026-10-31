@@ -127,6 +127,9 @@ def _process_workout(conn: sqlite3.Connection, elem: ET.Element) -> None:
             route_file = Path(path).name
             break
 
+    distance_m = distance_to_meters(elem.get("totalDistance"), elem.get("totalDistanceUnit"))
+    energy_kcal = energy_to_kcal(elem.get("totalEnergyBurned"), elem.get("totalEnergyBurnedUnit"))
+
     conn.execute(
         """
         INSERT OR REPLACE INTO workouts (
@@ -143,8 +146,8 @@ def _process_workout(conn: sqlite3.Connection, elem: ET.Element) -> None:
             elem.get("startDate"),
             local_date(start_dt),
             duration_to_seconds(elem.get("duration"), elem.get("durationUnit")),
-            distance_to_meters(elem.get("totalDistance"), elem.get("totalDistanceUnit")),
-            energy_to_kcal(elem.get("totalEnergyBurned"), elem.get("totalEnergyBurnedUnit")),
+            distance_m,
+            energy_kcal,
             source_id,
             elem.get("device"),
             route_file,

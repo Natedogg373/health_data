@@ -17,8 +17,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Local data (lives outside repo in ../data/)
+# Local data (lives outside repo in ../data/ or HEALTH_DATA_DIR)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+/data/
