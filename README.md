@@ -65,6 +65,8 @@ Training summaries for coaching review are written to `../data/summaries/`.
 - **Start command:** `npm start`
 - **Port:** `3000` (or set `PORT`; the start script uses `${PORT:-3000}`)
 
+Railpack detects Python first when `requirements.txt` is present (before `package.json`), and this repo has no Python web start file, so an unconfigured build starts `/bin/bash` and exits. `railpack.json` forces provider `node` and `deploy.startCommand` `npm start`. `nixpacks.toml` does the same for Nixpacks.
+
 Run the same locally:
 
 ```bash

@@ -1,0 +1,5 @@
+# Force Node so requirements.txt / run.py are not treated as the web app.
+providers = ["node"]
+
+[start]
+cmd = "npm start"
