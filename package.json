@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node --experimental-sqlite server/index.js",
-    "test": "node --experimental-sqlite --test test/api.test.js",
+    "test": "node --experimental-sqlite --test test/api.test.js && python3 test/test_dashboard.py",
     "build": "echo 'index.html is prebuilt'"
   },
   "dependencies": {

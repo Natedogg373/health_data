@@ -34,12 +34,15 @@ Options:
 
 1. Command prints `Wrote index.html (... bytes)` with exit code 0
 2. Open `index.html` locally in a browser (file:// or simple HTTP server)
-3. Confirm header shows current date range and five tabs load charts
+3. Confirm header shows the 5-mile zone-2 goal, date range, and tabs load:
+   Overview (progress strip), Effort (pace/HR, efficiency, zones),
+   Volume (mileage + gaps), Recovery, More (activity / workout types)
 
 ## Architecture
 
 | File | Role |
 |------|------|
+| `dashboard/training_config.py` | Zone bands, easy HR ceiling, weekly target, goal |
 | `dashboard/queries.py` | SQL → JSON payload sections |
 | `dashboard/template.html` | HTML/CSS/JS shell; `__DASHBOARD_DATA__` placeholder |
 | `dashboard/build_dashboard.py` | Queries DB, embeds JSON, writes `index.html` |
