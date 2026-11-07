@@ -18,6 +18,14 @@
       --run: #4ecdc4;
       --recovery: #a78bfa;
       --activity: #fbbf24;
+      --z1: #7dd3fc;
+      --z2: #4ecdc4;
+      --z3: #fbbf24;
+      --z4: #fb923c;
+      --z5: #ff6b6b;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --bad: #ff6b6b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -41,9 +49,10 @@
       align-items: baseline;
       justify-content: space-between;
       gap: 0.5rem 1.5rem;
-      margin-bottom: 1rem;
+      margin-bottom: 0.35rem;
     }
     h1 { font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
+    .goal-line { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.85rem; }
     .meta { font-size: 0.8rem; color: var(--muted); }
     nav.tabs {
       display: flex;
@@ -74,6 +83,29 @@
     .panel { display: none; animation: fade 0.2s ease; }
     .panel.active { display: block; }
     @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .banner {
+      border-radius: 10px;
+      padding: 0.95rem 1.15rem;
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .banner .kicker {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .banner .title { font-size: 1.15rem; font-weight: 600; }
+    .banner .detail { font-size: 0.88rem; color: var(--muted); margin-top: 0.25rem; }
+    .banner.on_track { border-color: var(--ok); }
+    .banner.on_track .title { color: var(--ok); }
+    .banner.light { border-color: var(--warn); }
+    .banner.light .title { color: var(--warn); }
+    .banner.too_hard { border-color: var(--bad); }
+    .banner.too_hard .title { color: var(--bad); }
+    .banner.gap { border-color: var(--muted); }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -102,6 +134,29 @@
     .stat.accent .value { color: var(--accent); }
     .stat.run .value { color: var(--run); }
     .stat.recovery .value { color: var(--recovery); }
+    .stat.warn .value { color: var(--warn); }
+    .stat.bad .value { color: var(--bad); }
+    .meter {
+      position: relative;
+      height: 10px;
+      background: var(--surface2);
+      border-radius: 99px;
+      margin-top: 0.65rem;
+      overflow: hidden;
+    }
+    .meter-band {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: rgba(61, 214, 198, 0.22);
+    }
+    .meter-fill {
+      position: relative;
+      height: 100%;
+      background: var(--run);
+      border-radius: 99px;
+      max-width: 100%;
+    }
     .charts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
@@ -118,8 +173,13 @@
     .chart-card h2 {
       font-size: 0.95rem;
       font-weight: 600;
-      margin-bottom: 0.85rem;
+      margin-bottom: 0.35rem;
       color: var(--text);
+    }
+    .chart-card .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
     }
     .chart-wrap { position: relative; height: 260px; }
     .chart-wrap.tall { height: 320px; }
@@ -142,15 +202,22 @@
     }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: var(--surface2); }
+    tr.candidate td { background: rgba(61, 214, 198, 0.08); }
     .table-wrap {
       overflow-x: auto;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
+      margin-bottom: 1.5rem;
     }
     .table-wrap h2 {
-      padding: 1rem 1.2rem 0.5rem;
+      padding: 1rem 1.2rem 0.35rem;
       font-size: 0.95rem;
+    }
+    .table-wrap .hint {
+      padding: 0 1.2rem 0.7rem;
+      font-size: 0.78rem;
+      color: var(--muted);
     }
     .badge {
       display: inline-block;
@@ -160,14 +227,29 @@
       background: var(--surface2);
       color: var(--muted);
     }
+    .badge.z1 { background: rgba(125, 211, 252, 0.2); color: var(--z1); }
+    .badge.z2 { background: rgba(78, 205, 196, 0.2); color: var(--z2); }
+    .badge.z3 { background: rgba(251, 191, 36, 0.2); color: var(--z3); }
+    .badge.z4 { background: rgba(251, 146, 60, 0.2); color: var(--z4); }
+    .badge.z5 { background: rgba(255, 107, 107, 0.2); color: var(--z5); }
+    .badge.easy { background: rgba(52, 211, 153, 0.18); color: var(--ok); }
+    .badge.quality { background: rgba(251, 146, 60, 0.2); color: var(--z4); }
     .section-note {
       font-size: 0.82rem;
       color: var(--muted);
       margin-bottom: 1.25rem;
     }
+    .lifetime {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    .gaps { font-size: 0.85rem; color: var(--muted); }
+    .gaps strong { color: var(--bad); font-weight: 600; }
     @media (max-width: 600px) {
       main { padding: 1rem; }
       .stat .value { font-size: 1.35rem; }
+      header { padding: 0.85rem 1rem 0; }
     }
   </style>
 </head>
@@ -177,50 +259,97 @@
       <h1>Training Dashboard</h1>
       <div class="meta" id="header-meta"></div>
     </div>
+    <div class="goal-line" id="goal-line"></div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="overview" class="active">Overview</button>
-      <button role="tab" data-tab="running">Running</button>
+      <button role="tab" data-tab="effort">Effort</button>
+      <button role="tab" data-tab="volume">Volume</button>
       <button role="tab" data-tab="recovery">Recovery</button>
-      <button role="tab" data-tab="activity">Activity</button>
-      <button role="tab" data-tab="workouts">Workouts</button>
+      <button role="tab" data-tab="more">More</button>
     </nav>
   </header>
 
   <main>
     <section id="overview" class="panel active" role="tabpanel">
+      <div id="progress-banner"></div>
       <div class="stats" id="overview-stats"></div>
-      <p class="section-note">Weekly run volume over the last six months.</p>
       <div class="charts">
         <div class="chart-card full">
-          <h2>Weekly Mileage</h2>
+          <h2>Last 8 weeks vs 17–20 mpw</h2>
+          <p class="hint">Bars are weekly miles. Lines mark the target band and 4-week rolling average.</p>
           <div class="chart-wrap"><canvas id="chart-overview-weekly"></canvas></div>
         </div>
       </div>
-    </section>
-
-    <section id="running" class="panel" role="tabpanel">
-      <div class="stats" id="running-stats"></div>
-      <div class="charts">
-        <div class="chart-card">
-          <h2>Weekly Mileage (all time)</h2>
-          <div class="chart-wrap tall"><canvas id="chart-running-weekly"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <h2>Monthly Mileage</h2>
-          <div class="chart-wrap tall"><canvas id="chart-running-monthly"></canvas></div>
-        </div>
-      </div>
       <div class="table-wrap">
-        <h2>Recent Runs</h2>
+        <h2>Goal tracker</h2>
+        <p class="hint" id="goal-hint"></p>
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>Miles</th><th>Duration</th><th>Pace</th>
-              <th>Avg HR</th><th>Max HR</th><th>Cal</th><th>Route</th>
+              <th>Date</th><th>Miles</th><th>Pace</th><th>Avg HR</th><th>Zone</th><th>Match</th>
+            </tr>
+          </thead>
+          <tbody id="goal-candidates-body"></tbody>
+        </table>
+      </div>
+      <p class="lifetime" id="lifetime-note"></p>
+    </section>
+
+    <section id="effort" class="panel" role="tabpanel">
+      <p class="section-note" id="effort-note"></p>
+      <div class="charts">
+        <div class="chart-card">
+          <h2>Pace at effort</h2>
+          <p class="hint">Pace vs workout-average HR. Lower on the chart is faster. Goal box: ≤145 bpm, 9:00–9:30/mi.</p>
+          <div class="chart-wrap tall"><canvas id="chart-scatter"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Easy-run pace trend</h2>
+          <p class="hint">Runs with avg HR 130–148. Dashed lines are the 9:00–9:30 goal band.</p>
+          <div class="chart-wrap tall"><canvas id="chart-easy-trend"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Easy aerobic form</h2>
+          <p class="hint" id="cardio-hint">Median easy pace with the HR those runs actually had. Gaps stay blank. Not Apple VO₂.</p>
+          <div class="chart-wrap"><canvas id="chart-cardio"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Zone mix (miles by avg HR)</h2>
+          <p class="hint">Most miles should sit in Z2; one quality day may reach Z4. Assigned from average HR, not time-in-zone.</p>
+          <div class="chart-wrap"><canvas id="chart-zones"></canvas></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <h2>Recent runs</h2>
+        <p class="hint">Easy = avg HR ≤ 145. Quality = avg HR ≥ 148.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Miles</th><th>Pace</th>
+              <th>Avg HR</th><th>Max HR</th><th>Zone</th><th>Kind</th>
             </tr>
           </thead>
           <tbody id="recent-runs-body"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section id="volume" class="panel" role="tabpanel">
+      <p class="section-note" id="volume-note"></p>
+      <div class="charts">
+        <div class="chart-card full">
+          <h2>Weekly mileage + consistency</h2>
+          <p class="hint">Zero weeks are highlighted. Rolling 4-week average should trend toward 17–20 without spikes.</p>
+          <div class="chart-wrap tall"><canvas id="chart-volume-weekly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Monthly mileage</h2>
+          <div class="chart-wrap"><canvas id="chart-volume-monthly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Gap weeks</h2>
+          <p class="gaps" id="gap-weeks"></p>
+        </div>
       </div>
     </section>
 
@@ -246,8 +375,9 @@
       </div>
     </section>
 
-    <section id="activity" class="panel" role="tabpanel">
-      <p class="section-note" id="activity-note"></p>
+    <section id="more" class="panel" role="tabpanel">
+      <p class="section-note">Daily activity rings and workout-type mix — useful context, not the training goal.</p>
+      <div class="stats" id="more-stats"></div>
       <div class="charts">
         <div class="chart-card">
           <h2>Daily Steps</h2>
@@ -261,11 +391,6 @@
           <h2>Exercise Minutes vs Goal</h2>
           <div class="chart-wrap"><canvas id="chart-exercise"></canvas></div>
         </div>
-      </div>
-    </section>
-
-    <section id="workouts" class="panel" role="tabpanel">
-      <div class="charts">
         <div class="chart-card">
           <h2>Workouts by Type</h2>
           <div class="chart-wrap"><canvas id="chart-workout-types"></canvas></div>
@@ -299,7 +424,15 @@
       accent2: "#ff6b6b",
       muted: "#8b9cb3",
       grid: "rgba(45, 58, 79, 0.6)",
+      ok: "#34d399",
+      warn: "#fbbf24",
+      z1: "#7dd3fc",
+      z2: "#4ecdc4",
+      z3: "#fbbf24",
+      z4: "#fb923c",
+      z5: "#ff6b6b",
     };
+    const ZONE_COLORS = { Z1: COLORS.z1, Z2: COLORS.z2, Z3: COLORS.z3, Z4: COLORS.z4, Z5: COLORS.z5 };
 
     const chartDefaults = {
       responsive: true,
@@ -335,7 +468,13 @@
       if (minPerMile == null) return "—";
       const m = Math.floor(minPerMile);
       const s = Math.round((minPerMile - m) * 60);
-      return `${m}:${String(s).padStart(2, "0")}/mi`;
+      const adj = s === 60 ? [m + 1, 0] : [m, s];
+      return `${adj[0]}:${String(adj[1]).padStart(2, "0")}/mi`;
+    }
+
+    function fmtPct(n) {
+      if (n == null) return "—";
+      return `${Math.round(n * 100)}%`;
     }
 
     function activityLabel(type) {
@@ -351,6 +490,8 @@
         HKWorkoutActivityTypeElliptical: "Elliptical",
         HKWorkoutActivityTypeStairClimbing: "Stairs",
         HKWorkoutActivityTypeRowing: "Rowing",
+        HKWorkoutActivityTypeCoreTraining: "Core",
+        HKWorkoutActivityTypeGolf: "Golf",
       };
       return map[type] || type.replace("HKWorkoutActivityType", "");
     }
@@ -359,65 +500,426 @@
       return `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
     }
 
+    function zoneBadge(zone) {
+      if (!zone) return '<span class="badge">—</span>';
+      return `<span class="badge ${zone.toLowerCase()}">${zone}</span>`;
+    }
+
+    function kindBadge(row) {
+      if (row.quality) return '<span class="badge quality">Quality</span>';
+      if (row.easy) return '<span class="badge easy">Easy</span>';
+      if (row.avg_hr == null) return '<span class="badge">No HR</span>';
+      return '<span class="badge">Steady</span>';
+    }
+
     function renderHeader() {
       const m = DATA.meta;
       const parts = [];
       if (m.data_start && m.data_end) parts.push(`${m.data_start} → ${m.data_end}`);
+      if (m.last_run_date) parts.push(`Last run ${m.last_run_date}`);
       if (m.export_date) parts.push(`Export: ${m.export_date.slice(0, 10)}`);
       parts.push(`Updated: ${m.generated_at}`);
       document.getElementById("header-meta").textContent = parts.join(" · ");
+      document.getElementById("goal-line").textContent = DATA.config.goal.statement;
     }
 
     function renderOverview() {
       const o = DATA.overview;
+      const p = o.progress;
+      const targetMax = Math.max(p.target_max, p.miles, 24);
+      const fillPct = Math.min(100, (p.miles / targetMax) * 100);
+      const bandLeft = (p.target_min / targetMax) * 100;
+      const bandWidth = ((p.target_max - p.target_min) / targetMax) * 100;
+      const easySub = p.easy_share == null ? "no HR on these runs" : `${fmt(p.easy_miles, 1)} mi ≤145 bpm`;
+      const q = p.last_quality;
+      const qSub = q
+        ? `${q.local_date} · ${fmt(q.miles, 1)} mi · ${fmtPace(q.pace_min_per_mile)} · ${fmt(q.avg_hr, 0)} bpm`
+        : "none with avg HR ≥ 148";
+      const form = p.easy_form || {};
+      const formPace = form.status === "ok" ? fmtPace(form.median_pace) : "—";
+      const formSub = form.status === "ok"
+        ? `observed ${fmt(form.median_hr, 0)} bpm · n=${form.n}`
+        : form.status === "sparse"
+          ? `${form.n || 0} easy sample${form.n === 1 ? "" : "s"} (need ${DATA.config.cardio.min_samples})`
+          : "no qualifying easy runs";
+
+      document.getElementById("progress-banner").innerHTML = `
+        <div class="banner ${p.status}">
+          <div class="kicker">${p.label} · ${p.week}</div>
+          <div class="title">${p.status_label}</div>
+          <div class="detail">${p.status_detail}</div>
+          <div class="meter" aria-hidden="true">
+            <div class="meter-band" style="left:${bandLeft}%;width:${bandWidth}%"></div>
+            <div class="meter-fill" style="width:${fillPct}%"></div>
+          </div>
+        </div>`;
+
       document.getElementById("overview-stats").innerHTML = [
-        statCard("Total Runs", o.run_count, `${fmt(o.total_miles, 0)} mi lifetime`, "run"),
-        statCard("Run Hours", fmt(o.total_hours, 0), "all time", "run"),
-        statCard("All Workouts", o.workout_count, "every activity type"),
+        statCard(p.label, `${fmt(p.miles, 1)} mi`, `${p.run_count} run${p.run_count === 1 ? "" : "s"} · target ${p.target_min}–${p.target_max}`, "run"),
+        statCard("Easy share", fmtPct(p.easy_share), easySub, p.easy_share != null && p.easy_share < 0.7 ? "warn" : "accent"),
+        statCard("Last quality", q ? fmtPace(q.pace_min_per_mile) : "—", qSub, "warn"),
+        statCard("4-week avg", p.rolling_4w_miles != null ? `${fmt(p.rolling_4w_miles, 1)} mi` : "—", "volume, not fitness", "run"),
+        statCard("Easy form", formPace, formSub, "accent"),
         statCard("Resting HR", fmt(o.latest_resting_hr, 0), o.latest_recovery_date || "", "recovery"),
-        statCard("HRV", fmt(o.latest_hrv, 0), "SDNN ms", "recovery"),
-        statCard("VO₂ Max", fmt(o.latest_vo2, 1), "ml/kg/min", "accent"),
       ].join("");
 
-      const weekly = o.weekly_miles || [];
+      const weekly = o.recent_weeks || [];
+      const tMin = DATA.config.weekly_miles_target.min;
+      const tMax = DATA.config.weekly_miles_target.max;
       makeChart("chart-overview-weekly", "bar", {
         labels: weekly.map(w => w.week),
-        datasets: [{
-          label: "Miles",
-          data: weekly.map(w => w.miles),
-          backgroundColor: COLORS.run + "cc",
-          borderColor: COLORS.run,
-          borderWidth: 1,
-          borderRadius: 4,
-        }],
+        datasets: [
+          {
+            type: "bar",
+            label: "Miles",
+            data: weekly.map(w => w.miles),
+            backgroundColor: weekly.map(w => w.is_gap ? COLORS.accent2 + "66" : COLORS.run + "cc"),
+            borderColor: weekly.map(w => w.is_gap ? COLORS.accent2 : COLORS.run),
+            borderWidth: 1,
+            borderRadius: 4,
+            order: 2,
+          },
+          {
+            type: "line",
+            label: "4-wk avg",
+            data: weekly.map(w => w.rolling_4w),
+            borderColor: COLORS.accent,
+            pointRadius: 0,
+            tension: 0.25,
+            order: 1,
+          },
+          {
+            type: "line",
+            label: `Target ${tMin}`,
+            data: weekly.map(() => tMin),
+            borderColor: COLORS.muted,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            order: 0,
+          },
+          {
+            type: "line",
+            label: `Target ${tMax}`,
+            data: weekly.map(() => tMax),
+            borderColor: COLORS.muted,
+            borderDash: [2, 4],
+            pointRadius: 0,
+            order: 0,
+          },
+        ],
       });
+
+      const best = o.goal.best_easy_near_5;
+      const gap = o.goal.pace_gap_min;
+      const gapTxt = gap == null
+        ? "No easy 3.5+ mile run in the lookback window yet."
+        : gap <= 0
+          ? `Best easy ~5 mi is already at or faster than 9:30 (${fmtPace(best.pace_min_per_mile)} on ${best.local_date}).`
+          : `Best easy ~5 mi is ${fmtPace(best.pace_min_per_mile)} on ${best.local_date} (${fmt(best.avg_hr, 0)} bpm) — about ${fmtPace(gap).replace("/mi", "")} slower than 9:30.`;
+      document.getElementById("goal-hint").textContent =
+        `${DATA.config.goal.statement}. Score blends distance, pace, and HR. ${gapTxt}`;
+
+      document.getElementById("goal-candidates-body").innerHTML = (o.goal.candidates || []).map(row => {
+        const inGoal = row.easy && row.miles >= 4.5 && row.pace_min_per_mile >= 9 && row.pace_min_per_mile <= 9.5;
+        return `
+        <tr class="${inGoal ? "candidate" : ""}">
+          <td>${row.local_date}</td>
+          <td>${fmt(row.miles, 2)}</td>
+          <td>${fmtPace(row.pace_min_per_mile)}</td>
+          <td>${fmt(row.avg_hr, 0)}</td>
+          <td>${zoneBadge(row.zone)}</td>
+          <td>${fmt(row.goal_score, 0)}</td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="6">No 3+ mile runs in the lookback window.</td></tr>`;
+
+      document.getElementById("lifetime-note").textContent =
+        `Lifetime (less important than the last 8 weeks): ${o.run_count} runs, ${fmt(o.total_miles, 0)} mi, ${fmt(o.total_hours, 0)} hours across ${o.workout_count} workouts.`;
     }
 
-    function renderRunning() {
+    function renderEffort() {
       const r = DATA.running;
-      const totalMiles = r.monthly.reduce((s, m) => s + (m.miles || 0), 0);
-      document.getElementById("running-stats").innerHTML = [
-        statCard("Recent Runs", r.recent_runs.length, "last 30 logged"),
-        statCard("Months Tracked", r.monthly.length, `${fmt(totalMiles, 0)} mi in chart`),
-        statCard("Weeks Tracked", r.weekly.length, "with at least one run"),
-      ].join("");
+      const cfg = DATA.config;
+      document.getElementById("effort-note").textContent =
+        (cfg.cardio && cfg.cardio.formula ? cfg.cardio.formula + " " : "") + (cfg.zone_note || "");
 
-      makeChart("chart-running-weekly", "bar", {
-        labels: r.weekly.map(w => w.week),
-        datasets: [{
-          label: "Miles",
-          data: r.weekly.map(w => w.miles),
-          backgroundColor: COLORS.run + "99",
-          borderColor: COLORS.run,
-          borderWidth: 1,
-        }],
+      const zoneNames = (cfg.zones || []).map(z => z.name);
+      const scatterSets = zoneNames.map(name => {
+        const pts = (r.scatter || []).filter(p => p.zone === name);
+        return {
+          label: name,
+          data: pts.map(p => ({ x: p.avg_hr, y: p.pace_min_per_mile, date: p.local_date, miles: p.miles })),
+          backgroundColor: ZONE_COLORS[name],
+          pointRadius: (ctx) => (pts[ctx.dataIndex] && pts[ctx.dataIndex].recent ? 5 : 3),
+        };
+      });
+      scatterSets.push({
+        type: "line",
+        label: "Easy HR 145",
+        data: [{ x: cfg.easy_hr_ceiling, y: 8.2 }, { x: cfg.easy_hr_ceiling, y: 12.2 }],
+        borderColor: COLORS.muted,
+        borderDash: [5, 4],
+        pointRadius: 0,
+        borderWidth: 1,
+      });
+      scatterSets.push({
+        type: "line",
+        label: "9:00 goal",
+        data: [{ x: 118, y: cfg.goal.pace_min }, { x: cfg.easy_hr_ceiling, y: cfg.goal.pace_min }],
+        borderColor: COLORS.ok,
+        borderDash: [4, 3],
+        pointRadius: 0,
+        borderWidth: 1,
+      });
+      scatterSets.push({
+        type: "line",
+        label: "9:30 goal",
+        data: [{ x: 118, y: cfg.goal.pace_max }, { x: cfg.easy_hr_ceiling, y: cfg.goal.pace_max }],
+        borderColor: COLORS.ok,
+        borderDash: [4, 3],
+        pointRadius: 0,
+        borderWidth: 1,
       });
 
-      makeChart("chart-running-monthly", "line", {
-        labels: r.monthly.map(m => m.month),
+      makeChart("chart-scatter", "scatter", { datasets: scatterSets }, {
+        plugins: {
+          ...chartDefaults.plugins,
+          tooltip: {
+            ...chartDefaults.plugins.tooltip,
+            callbacks: {
+              title: items => items[0].raw.date || "",
+              label: item => {
+                if (item.raw.miles == null) return item.dataset.label;
+                return `${item.dataset.label} · ${fmtPace(item.raw.y)} · ${fmt(item.raw.x, 0)} bpm · ${fmt(item.raw.miles, 1)} mi`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: "linear",
+            title: { display: true, text: "Avg HR (bpm)", color: COLORS.muted },
+            min: 118,
+            max: 190,
+            ticks: { color: COLORS.muted },
+            grid: { color: COLORS.grid },
+          },
+          y: {
+            type: "linear",
+            reverse: true,
+            title: { display: true, text: "Pace (min/mi, faster is up)", color: COLORS.muted },
+            min: 8,
+            max: 12.5,
+            ticks: {
+              color: COLORS.muted,
+              callback: v => fmtPace(v).replace("/mi", ""),
+            },
+            grid: { color: COLORS.grid },
+          },
+        },
+      });
+
+      const easy = r.easy_trend || [];
+      makeChart("chart-easy-trend", "line", {
+        labels: easy.map(x => x.local_date),
+        datasets: [
+          {
+            label: "Easy pace",
+            data: easy.map(x => x.pace_min_per_mile),
+            borderColor: COLORS.run,
+            backgroundColor: COLORS.run + "22",
+            fill: false,
+            tension: 0.2,
+            pointRadius: 3,
+            spanGaps: true,
+          },
+          {
+            label: "9:00",
+            data: easy.map(() => cfg.goal.pace_min),
+            borderColor: COLORS.ok,
+            borderDash: [5, 4],
+            pointRadius: 0,
+          },
+          {
+            label: "9:30",
+            data: easy.map(() => cfg.goal.pace_max),
+            borderColor: COLORS.ok,
+            borderDash: [2, 4],
+            pointRadius: 0,
+          },
+        ],
+      }, {
+        scales: {
+          x: chartDefaults.scales.x,
+          y: {
+            reverse: true,
+            min: 8,
+            max: 12.5,
+            ticks: {
+              color: COLORS.muted,
+              callback: v => fmtPace(v).replace("/mi", ""),
+            },
+            grid: { color: COLORS.grid },
+          },
+        },
+      });
+
+      const cardio = (r.cardio && r.cardio.weekly) || [];
+      const win = (r.cardio && r.cardio.window) || {};
+      const hint = document.getElementById("cardio-hint");
+      if (hint) {
+        const bits = [];
+        if (win.status === "ok") {
+          bits.push(`6-week median ${fmtPace(win.median_pace)} with observed ${fmt(win.median_hr, 0)} bpm (n=${win.n}).`);
+        } else if (win.status === "sparse") {
+          bits.push(`Only ${win.n || 0} qualifying easy run${win.n === 1 ? "" : "s"} in ${cfg.cardio.rolling_weeks} weeks — no headline.`);
+        } else {
+          bits.push("No qualifying easy aerobic samples in this window.");
+        }
+        bits.push("Not pace at a fixed HR and not Apple VO₂. Heat, hills, and treadmill vs outdoor still move this.");
+        hint.textContent = bits.join(" ");
+      }
+      makeChart("chart-cardio", "line", {
+        labels: cardio.map(w => w.week),
+        datasets: [
+          {
+            label: "Weekly median easy pace",
+            data: cardio.map(w => w.median_pace),
+            borderColor: COLORS.run + "99",
+            pointRadius: 3,
+            spanGaps: false,
+            tension: 0.2,
+          },
+          {
+            label: `${cfg.cardio.rolling_weeks}-wk median`,
+            data: cardio.map(w => w.rolling_pace),
+            borderColor: COLORS.accent,
+            borderWidth: 2.5,
+            pointRadius: 0,
+            spanGaps: false,
+            tension: 0.25,
+          },
+          {
+            label: "9:00",
+            data: cardio.map(() => cfg.goal.pace_min),
+            borderColor: COLORS.ok,
+            borderDash: [5, 4],
+            pointRadius: 0,
+          },
+          {
+            label: "9:30",
+            data: cardio.map(() => cfg.goal.pace_max),
+            borderColor: COLORS.ok,
+            borderDash: [2, 4],
+            pointRadius: 0,
+          },
+        ],
+      }, {
+        scales: {
+          x: chartDefaults.scales.x,
+          y: {
+            reverse: true,
+            min: 8,
+            max: 12.5,
+            ticks: {
+              color: COLORS.muted,
+              callback: v => fmtPace(v).replace("/mi", ""),
+            },
+            grid: { color: COLORS.grid },
+          },
+        },
+      });
+
+      const zw = r.zone_weekly || [];
+      makeChart("chart-zones", "bar", {
+        labels: zw.map(w => w.week),
+        datasets: zoneNames.map(name => ({
+          label: name,
+          data: zw.map(w => (w.zones && w.zones[name]) || 0),
+          backgroundColor: ZONE_COLORS[name],
+          stack: "zones",
+        })).concat([{
+          label: "No HR",
+          data: zw.map(w => w.unknown_miles || 0),
+          backgroundColor: COLORS.muted + "66",
+          stack: "zones",
+        }]),
+      }, {
+        scales: {
+          x: { ...chartDefaults.scales.x, stacked: true },
+          y: { ...chartDefaults.scales.y, stacked: true, title: { display: true, text: "Miles", color: COLORS.muted } },
+        },
+      });
+
+      document.getElementById("recent-runs-body").innerHTML = (r.recent_runs || []).map(row => `
+        <tr>
+          <td>${row.local_date}</td>
+          <td>${fmt(row.miles, 2)}</td>
+          <td>${fmtPace(row.pace_min_per_mile)}</td>
+          <td>${fmt(row.avg_hr, 0)}</td>
+          <td>${fmt(row.max_hr, 0)}</td>
+          <td>${zoneBadge(row.zone)}</td>
+          <td>${kindBadge(row)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderVolume() {
+      const v = DATA.volume;
+      const gaps = v.gap_weeks || [];
+      const volStart = v.weekly.length ? v.weekly[0].week : "";
+      const volEnd = v.weekly.length ? v.weekly[v.weekly.length - 1].week : "";
+      document.getElementById("volume-note").textContent =
+        `Last ${v.weekly.length} weeks (${volStart} → ${volEnd}). Target ${v.target_min}–${v.target_max} mpw.`;
+      document.getElementById("gap-weeks").innerHTML = gaps.length
+        ? `<strong>${gaps.length} gap week${gaps.length === 1 ? "" : "s"}</strong> in this window: ${gaps.join(", ")}.`
+        : "No zero-mileage weeks in this window.";
+
+      makeChart("chart-volume-weekly", "bar", {
+        labels: v.weekly.map(w => w.week),
+        datasets: [
+          {
+            type: "bar",
+            label: "Miles",
+            data: v.weekly.map(w => w.miles),
+            backgroundColor: v.weekly.map(w => w.is_gap ? COLORS.accent2 + "55" : COLORS.run + "aa"),
+            borderRadius: 3,
+            order: 2,
+          },
+          {
+            type: "line",
+            label: "4-wk avg",
+            data: v.weekly.map(w => w.rolling_4w),
+            borderColor: COLORS.accent,
+            pointRadius: 0,
+            tension: 0.25,
+            order: 1,
+          },
+          {
+            type: "line",
+            label: `Target ${v.target_min}`,
+            data: v.weekly.map(() => v.target_min),
+            borderColor: COLORS.muted,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            order: 0,
+          },
+          {
+            type: "line",
+            label: `Target ${v.target_max}`,
+            data: v.weekly.map(() => v.target_max),
+            borderColor: COLORS.muted,
+            borderDash: [2, 4],
+            pointRadius: 0,
+            order: 0,
+          },
+        ],
+      });
+
+      makeChart("chart-volume-monthly", "line", {
+        labels: v.monthly.map(m => m.month),
         datasets: [{
           label: "Miles",
-          data: r.monthly.map(m => m.miles),
+          data: v.monthly.map(m => m.miles),
           borderColor: COLORS.accent,
           backgroundColor: COLORS.accent + "33",
           fill: true,
@@ -425,19 +927,6 @@
           pointRadius: 2,
         }],
       });
-
-      document.getElementById("recent-runs-body").innerHTML = r.recent_runs.map(row => `
-        <tr>
-          <td>${row.local_date}</td>
-          <td>${fmt(row.miles, 2)}</td>
-          <td>${fmt(row.duration_min, 0)} min</td>
-          <td>${fmtPace(row.pace_min_per_mile)}</td>
-          <td>${fmt(row.avg_hr, 0)}</td>
-          <td>${fmt(row.max_hr, 0)}</td>
-          <td>${row.energy_kcal ? Math.round(row.energy_kcal) : "—"}</td>
-          <td>${row.has_route ? '<span class="badge">GPS</span>' : "—"}</td>
-        </tr>
-      `).join("");
     }
 
     function renderRecovery() {
@@ -496,11 +985,16 @@
       });
     }
 
-    function renderActivity() {
-      const d = DATA.activity.daily;
-      document.getElementById("activity-note").textContent =
-        `Steps, energy, and ring data for the last ${DATA.meta.chart_days} days.`;
+    function renderMore() {
+      const o = DATA.overview;
+      document.getElementById("more-stats").innerHTML = [
+        statCard("Lifetime runs", o.run_count, `${fmt(o.total_miles, 0)} mi`, "run"),
+        statCard("Run hours", fmt(o.total_hours, 0), "all time", "run"),
+        statCard("All workouts", o.workout_count, "every activity type"),
+        statCard("VO₂ Max", fmt(o.latest_vo2, 1), "ml/kg/min", "accent"),
+      ].join("");
 
+      const d = DATA.activity.daily;
       const labels = d.map(x => x.local_date);
       makeChart("chart-steps", "line", {
         labels,
@@ -552,9 +1046,7 @@
           },
         ],
       });
-    }
 
-    function renderWorkouts() {
       const types = DATA.workouts.by_type.map(t => ({
         ...t,
         label: activityLabel(t.activity_type),
@@ -593,6 +1085,7 @@
 
     function makeChart(id, type, data, extraOpts = {}) {
       const ctx = document.getElementById(id);
+      if (!ctx) return;
       if (charts[id]) charts[id].destroy();
       charts[id] = new Chart(ctx, {
         type,
@@ -612,10 +1105,10 @@
 
     renderHeader();
     renderOverview();
-    renderRunning();
+    renderEffort();
+    renderVolume();
     renderRecovery();
-    renderActivity();
-    renderWorkouts();
+    renderMore();
   </script>
 </body>
 </html>
