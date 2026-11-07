@@ -13,6 +13,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from dashboard.queries import (  # noqa: E402
+    _cardio_from_runs,
     assign_zone,
     classify_week_status,
     fetch_dashboard_data,
@@ -20,7 +21,6 @@ from dashboard.queries import (  # noqa: E402
     is_easy,
     is_quality,
     qualifies_easy_aerobic,
-    sec_per_mile_per_bpm,
 )
 from dashboard.training_config import (  # noqa: E402
     CARDIO_MAX_HR_CEILING,
@@ -33,6 +33,20 @@ from parse.db import init_schema  # noqa: E402
 
 AS_OF = date(2026, 11, 6)  # Friday
 METERS = 1609.344
+FORBIDDEN_CARDIO_SCORE_KEYS = (
+    "median_sec_per_mi_per_bpm",
+    "sec_per_mi_per_bpm",
+    "efficiency",
+    "effort_index",
+    "economy",
+    "score",
+    "pace_gap_vs_930",
+)
+
+
+def assert_no_combined_cardio_score(test: unittest.TestCase, payload: dict) -> None:
+    for key in FORBIDDEN_CARDIO_SCORE_KEYS:
+        test.assertNotIn(key, payload)
 
 
 def _run(
@@ -139,23 +153,35 @@ class ZoneHelpersTest(unittest.TestCase):
         self.assertTrue(is_quality(QUALITY_AVG_HR_MIN))
         self.assertFalse(is_quality(QUALITY_AVG_HR_MIN - 1))
 
-    def test_sec_per_mile_per_bpm(self):
-        # 10:00/mi at 140 bpm → 600/140 = 4.286 s/mi/bpm
-        ten = sec_per_mile_per_bpm(10.0, 140)
-        nine = sec_per_mile_per_bpm(9.25, 140)
-        self.assertAlmostEqual(ten, 600 / 140, places=3)
-        self.assertLess(nine, ten)
-        self.assertIsNone(sec_per_mile_per_bpm(10.0, None))
-        self.assertIsNone(sec_per_mile_per_bpm(None, 140))
-
     def test_qualifying_easy_aerobic_filters(self):
         self.assertTrue(qualifies_easy_aerobic(4.0, 40, 141, 152, 10.2))
         self.assertFalse(qualifies_easy_aerobic(1.5, 16, 140, 148, 10.5))  # short
         self.assertFalse(qualifies_easy_aerobic(5.0, 45, 159, 174, 9.05))  # 4x4-ish
         self.assertFalse(qualifies_easy_aerobic(4.75, 40, 141, 179, 8.5))  # avg easy, max not
         self.assertFalse(qualifies_easy_aerobic(4.0, 40, None, 150, 10.2))  # no HR
-        self.assertTrue(qualifies_easy_aerobic(4.0, 40, 141, None, 10.2))  # missing max is ok
+        self.assertTrue(qualifies_easy_aerobic(4.0, 40, 141, None, 10.2))  # missing max still counts
         self.assertFalse(qualifies_easy_aerobic(4.0, 40, 141, CARDIO_MAX_HR_CEILING + 1, 10.2))
+
+    def test_inverted_pace_over_hr_ratio_is_not_shipped(self):
+        """sec/mi ÷ bpm at the same pace falls when HR rises — that is not 'better'."""
+        inverted = lambda pace, hr: pace * 60.0 / hr
+        self.assertLess(inverted(10.0, 145), inverted(10.0, 140))
+
+    def test_same_pace_lower_hr_never_looks_worse(self):
+        low = _cardio_from_runs([{"pace_min_per_mile": 10.0, "avg_hr": 138, "max_hr": 150}] * 3)
+        high = _cardio_from_runs([{"pace_min_per_mile": 10.0, "avg_hr": 144, "max_hr": 150}] * 3)
+        self.assertEqual(low["median_pace"], high["median_pace"])
+        self.assertLess(low["median_hr"], high["median_hr"])
+        assert_no_combined_cardio_score(self, low)
+        assert_no_combined_cardio_score(self, high)
+
+    def test_same_hr_faster_pace_never_looks_worse(self):
+        fast = _cardio_from_runs([{"pace_min_per_mile": 9.25, "avg_hr": 140, "max_hr": 150}] * 3)
+        slow = _cardio_from_runs([{"pace_min_per_mile": 10.50, "avg_hr": 140, "max_hr": 150}] * 3)
+        self.assertLess(fast["median_pace"], slow["median_pace"])
+        self.assertEqual(fast["median_hr"], slow["median_hr"])
+        assert_no_combined_cardio_score(self, fast)
+        assert_no_combined_cardio_score(self, slow)
 
     def test_goal_score_prefers_easy_five_at_goal_pace(self):
         hit = goal_score(5.0, 9.25, 144)
@@ -227,8 +253,10 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(cardio["window"]["status"], "ok")
         self.assertGreaterEqual(cardio["window"]["n"], CARDIO_MIN_SAMPLES)
         self.assertIsNotNone(cardio["window"]["median_pace"])
-        self.assertIsNotNone(cardio["window"]["median_sec_per_mi_per_bpm"])
+        self.assertIsNotNone(cardio["window"]["median_hr"])
+        assert_no_combined_cardio_score(self, cardio["window"])
         self.assertTrue(any(w["median_pace"] for w in cardio["weekly"]))
+        self.assertTrue(all("median_sec_per_mi_per_bpm" not in w for w in cardio["weekly"]))
         # Interval / high-HR day must not be a cardio sample.
         recent = {r["local_date"]: r for r in self.data["running"]["recent_runs"]}
         self.assertFalse(recent["2026-11-06"]["cardio_sample"])
@@ -237,7 +265,8 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertTrue(all(130 <= r["avg_hr"] <= 148 for r in easy))
         self.assertNotIn("vo2", cardio["formula"].lower())
         self.assertIn("apple vo", cardio["limitations"].lower().replace("₂", "2"))
-        self.assertIn("not this score", cardio["limitations"].lower())
+        self.assertIn("not a speed/hr index", cardio["limitations"].lower())
+        self.assertIn("missing max hr still counts", cardio["limitations"].lower())
         self.assertIsNone(self.data["overview"]["progress"]["easy_form"].get("vo2"))
 
     def test_config_embedded(self):
@@ -265,7 +294,8 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(window["n"], 2)
         self.assertEqual(window["status"], "sparse")
         self.assertIsNone(window["median_pace"])
-        self.assertIsNone(window["median_sec_per_mi_per_bpm"])
+        self.assertIsNone(window["median_hr"])
+        assert_no_combined_cardio_score(self, window)
         conn.close()
 
     def test_tiny_seed_does_not_crash(self):

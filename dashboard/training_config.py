@@ -33,14 +33,14 @@ CONSISTENCY_WEEKS = 26
 OVERVIEW_WEEKS = 8
 GOAL_LOOKBACK_WEEKS = 16
 
-# Easy-aerobic samples for the cardio form metric (not Apple VO2).
-# Stricter than the ≤145 easy-share flag: skip short jogs, 4x4s, and
-# workouts whose max HR shows they were not a steady easy run.
+# Easy-aerobic *samples* for descriptive form (median pace + observed HR).
+# Not Apple VO2. Max-HR cap is a conservative heuristic, not proof a run was
+# steady; runs with no max HR are still included. This is not a speed/HR index.
 CARDIO_ROLLING_WEEKS = 6
 CARDIO_MIN_SAMPLES = 3
 CARDIO_MIN_MILES = 2.0
 CARDIO_MIN_DURATION_MIN = 18.0
-CARDIO_MAX_HR_CEILING = 160  # skip samples whose max HR is clearly above easy/Z3
+CARDIO_MAX_HR_CEILING = 160  # drop samples whose recorded max is clearly above easy/Z3
 
 # Goal: 5 miles at 9:00–9:30/mi while staying at easy effort.
 GOAL_DISTANCE_MI = 5.0

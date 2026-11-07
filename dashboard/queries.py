@@ -88,17 +88,6 @@ def pace_min_per_mile(distance_m: float | None, duration_sec: float | None) -> f
     return round(duration_sec / miles / 60.0, 2)
 
 
-def sec_per_mile_per_bpm(pace_min_per_mile: float | None, avg_hr: float | None) -> float | None:
-    """Seconds per mile per bpm. Lower = more economical at that effort.
-
-    Replaces the old mph/avg_hr×1000 index (arbitrary scale, mean-of-means,
-    and it treated short jogs and high-max surges as easy aerobic work).
-    """
-    if pace_min_per_mile is None or avg_hr is None or avg_hr <= 0 or pace_min_per_mile <= 0:
-        return None
-    return round((float(pace_min_per_mile) * 60.0) / float(avg_hr), 3)
-
-
 def qualifies_easy_aerobic(
     miles: float | None,
     duration_min: float | None,
@@ -106,7 +95,11 @@ def qualifies_easy_aerobic(
     max_hr: float | None,
     pace_min_per_mile: float | None,
 ) -> bool:
-    """Steady easy samples for aerobic-form tracking. Not a clinical test."""
+    """Filter for descriptive easy-run form. Not a clinical test.
+
+    Max HR above CARDIO_MAX_HR_CEILING is a conservative skip, not evidence
+    the run was (or wasn't) steady. Missing max HR does not disqualify.
+    """
     if miles is None or miles < CARDIO_MIN_MILES:
         return False
     if duration_min is None or duration_min < CARDIO_MIN_DURATION_MIN:
@@ -249,7 +242,6 @@ def _enrich_run(row: dict) -> dict:
         "quality": is_quality(avg_hr),
         "easy_band": in_easy_band(avg_hr),
         "cardio_sample": cardio_ok,
-        "sec_per_mi_per_bpm": sec_per_mile_per_bpm(pace, avg_hr) if cardio_ok else None,
         "goal_score": goal_score(miles, pace, avg_hr) if miles and pace else None,
     }
 
@@ -287,19 +279,22 @@ def _week_payload(week_start: date, runs: list[dict]) -> dict:
 
 
 CARDIO_LIMITATIONS = (
-    "Easy aerobic form uses workout-average HR, so hills, heat, treadmill vs outdoor, "
-    "and 4x4s with a low average can still distort a week. Short jogs and high-max "
-    "surges are excluded. Apple VO₂ max is a separate Health app estimate — it is not "
-    "this score. Empty weeks stay empty; no interpolation."
+    "Descriptive median easy pace with the observed average HR of those same runs — "
+    "not pace at a fixed HR, not a speed/HR index, and not Apple VO₂ max. "
+    "Workout-average HR mixes hills, heat, treadmill vs outdoor, and 4x4s that "
+    "average easy. Max-HR ≤160 is a conservative skip, not proof a run was steady; "
+    "missing max HR still counts. Short jogs are dropped. Empty weeks stay empty; "
+    "no interpolation. Headline needs enough samples; otherwise no number."
 )
 
 
 def _cardio_from_runs(samples: list[dict]) -> dict:
+    """Median easy pace + observed HR. No combined economy ratio."""
     paces = [r["pace_min_per_mile"] for r in samples if r.get("pace_min_per_mile") is not None]
     hrs = [r["avg_hr"] for r in samples if r.get("avg_hr") is not None]
-    ratios = [r["sec_per_mi_per_bpm"] for r in samples if r.get("sec_per_mi_per_bpm") is not None]
     indoor_n = sum(1 for r in samples if r.get("indoor") is True)
     outdoor_n = sum(1 for r in samples if r.get("indoor") is False)
+    missing_max_n = sum(1 for r in samples if r.get("max_hr") is None)
     n = len(samples)
     if n == 0:
         status = "none"
@@ -307,19 +302,15 @@ def _cardio_from_runs(samples: list[dict]) -> dict:
         status = "sparse"
     else:
         status = "ok"
-    median_pace = _round(_median(paces), 2) if paces else None
     return {
         "n": n,
         "status": status,
-        "median_pace": median_pace,
+        "median_pace": _round(_median(paces), 2) if paces else None,
         "median_hr": _round(_median(hrs), 0) if hrs else None,
-        "median_sec_per_mi_per_bpm": _round(_median(ratios), 3) if ratios else None,
         "indoor_n": indoor_n,
         "outdoor_n": outdoor_n,
         "unknown_surface_n": n - indoor_n - outdoor_n,
-        "pace_gap_vs_930": (
-            round(median_pace - GOAL_PACE_MAX, 2) if median_pace is not None else None
-        ),
+        "missing_max_hr_n": missing_max_n,
     }
 
 
@@ -520,8 +511,6 @@ def fetch_dashboard_data(
     if cardio_window["status"] != "ok":
         cardio_window["median_pace"] = None
         cardio_window["median_hr"] = None
-        cardio_window["median_sec_per_mi_per_bpm"] = None
-        cardio_window["pace_gap_vs_930"] = None
 
     cardio_weekly = []
     for ws in effort_starts:
@@ -547,14 +536,12 @@ def fetch_dashboard_data(
                 "n": summary["n"],
                 "median_pace": summary["median_pace"],
                 "median_hr": summary["median_hr"],
-                "median_sec_per_mi_per_bpm": summary["median_sec_per_mi_per_bpm"],
                 "indoor_n": summary["indoor_n"],
                 "outdoor_n": summary["outdoor_n"],
+                "missing_max_hr_n": summary["missing_max_hr_n"],
                 "rolling_n": roll["n"],
                 "rolling_pace": roll["median_pace"] if roll["status"] == "ok" else None,
-                "rolling_sec_per_mi_per_bpm": (
-                    roll["median_sec_per_mi_per_bpm"] if roll["status"] == "ok" else None
-                ),
+                "rolling_hr": roll["median_hr"] if roll["status"] == "ok" else None,
             }
         )
 
@@ -698,10 +685,12 @@ def fetch_dashboard_data(
             "max_hr_ceiling": CARDIO_MAX_HR_CEILING,
             "easy_hr_ceiling": EASY_HR_CEILING,
             "formula": (
-                "Median pace and sec/mi per bpm on runs with avg HR ≤ 145, "
-                f"max HR ≤ {CARDIO_MAX_HR_CEILING} (if recorded), "
+                "Median easy pace paired with the median observed avg HR of those runs. "
+                f"Samples: avg HR ≤ 145, max HR ≤ {CARDIO_MAX_HR_CEILING} if recorded "
+                f"(heuristic skip; missing max still counts), "
                 f"≥ {CARDIO_MIN_MILES} mi and ≥ {int(CARDIO_MIN_DURATION_MIN)} min. "
-                f"Headline needs {CARDIO_MIN_SAMPLES}+ samples in {CARDIO_ROLLING_WEEKS} weeks."
+                f"Headline needs {CARDIO_MIN_SAMPLES}+ samples in {CARDIO_ROLLING_WEEKS} weeks. "
+                "Not a speed/HR index and not pace at a fixed heart rate."
             ),
             "limitations": CARDIO_LIMITATIONS,
         },
@@ -781,8 +770,8 @@ def fetch_dashboard_data(
                 "window": cardio_window,
                 "weekly": cardio_weekly,
                 "formula": (
-                    "Median of qualifying easy runs; sec/mi per bpm = pace_sec / avg_hr. "
-                    "Lower ratio = more economical. Not Apple VO₂ max."
+                    "Median qualifying easy pace with the observed average HR of the same runs. "
+                    "Not a speed/HR index, not pace at a fixed HR, not Apple VO₂ max."
                 ),
                 "limitations": CARDIO_LIMITATIONS,
             },

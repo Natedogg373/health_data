@@ -310,7 +310,7 @@
         </div>
         <div class="chart-card">
           <h2>Easy aerobic form</h2>
-          <p class="hint" id="cardio-hint">Median pace on qualifying easy runs (not Apple VO₂). Gaps stay blank.</p>
+          <p class="hint" id="cardio-hint">Median easy pace with the HR those runs actually had. Gaps stay blank. Not Apple VO₂.</p>
           <div class="chart-wrap"><canvas id="chart-cardio"></canvas></div>
         </div>
         <div class="chart-card">
@@ -538,7 +538,7 @@
       const form = p.easy_form || {};
       const formPace = form.status === "ok" ? fmtPace(form.median_pace) : "—";
       const formSub = form.status === "ok"
-        ? `${fmt(form.median_hr, 0)} bpm · ${fmt(form.median_sec_per_mi_per_bpm, 2)} sec/mi/bpm · n=${form.n}`
+        ? `observed ${fmt(form.median_hr, 0)} bpm · n=${form.n}`
         : form.status === "sparse"
           ? `${form.n || 0} easy sample${form.n === 1 ? "" : "s"} (need ${DATA.config.cardio.min_samples})`
           : "no qualifying easy runs";
@@ -769,13 +769,13 @@
       if (hint) {
         const bits = [];
         if (win.status === "ok") {
-          bits.push(`6-week median ${fmtPace(win.median_pace)} at ${fmt(win.median_hr, 0)} bpm (${fmt(win.median_sec_per_mi_per_bpm, 2)} sec/mi/bpm, n=${win.n}).`);
+          bits.push(`6-week median ${fmtPace(win.median_pace)} with observed ${fmt(win.median_hr, 0)} bpm (n=${win.n}).`);
         } else if (win.status === "sparse") {
-          bits.push(`Only ${win.n || 0} qualifying easy run${win.n === 1 ? "" : "s"} in ${cfg.cardio.rolling_weeks} weeks — no headline score.`);
+          bits.push(`Only ${win.n || 0} qualifying easy run${win.n === 1 ? "" : "s"} in ${cfg.cardio.rolling_weeks} weeks — no headline.`);
         } else {
           bits.push("No qualifying easy aerobic samples in this window.");
         }
-        bits.push("Not Apple VO₂ max. Heat, hills, and treadmill vs outdoor still move this.");
+        bits.push("Not pace at a fixed HR and not Apple VO₂. Heat, hills, and treadmill vs outdoor still move this.");
         hint.textContent = bits.join(" ");
       }
       makeChart("chart-cardio", "line", {
