@@ -35,7 +35,7 @@ Options:
 1. Command prints `Wrote index.html (... bytes)` with exit code 0
 2. Open `index.html` locally in a browser (file:// or simple HTTP server)
 3. Confirm header shows the 5-mile zone-2 goal, date range, and tabs load:
-   Overview (progress strip), Effort (pace/HR, efficiency, zones),
+   Overview (progress strip + easy form), Effort (pace/HR, easy aerobic form, zones),
    Volume (mileage + gaps), Recovery, More (activity / workout types)
 
 ## Architecture

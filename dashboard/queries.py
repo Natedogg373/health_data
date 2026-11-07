@@ -7,10 +7,14 @@ from datetime import date, timedelta
 from statistics import mean
 
 from dashboard.training_config import (
+    CARDIO_MAX_HR_CEILING,
+    CARDIO_MIN_DURATION_MIN,
+    CARDIO_MIN_MILES,
+    CARDIO_MIN_SAMPLES,
+    CARDIO_ROLLING_WEEKS,
     CONSISTENCY_WEEKS,
     EASY_HR_BAND,
     EASY_HR_CEILING,
-    EFFICIENCY_ROLLING_WEEKS,
     GOAL_DISTANCE_MI,
     GOAL_HR_MAX,
     GOAL_LOOKBACK_WEEKS,
@@ -84,20 +88,47 @@ def pace_min_per_mile(distance_m: float | None, duration_sec: float | None) -> f
     return round(duration_sec / miles / 60.0, 2)
 
 
-def speed_mph(distance_m: float | None, duration_sec: float | None) -> float | None:
-    if not distance_m or distance_m <= 0 or not duration_sec or duration_sec <= 0:
+def sec_per_mile_per_bpm(pace_min_per_mile: float | None, avg_hr: float | None) -> float | None:
+    """Seconds per mile per bpm. Lower = more economical at that effort.
+
+    Replaces the old mph/avg_hr×1000 index (arbitrary scale, mean-of-means,
+    and it treated short jogs and high-max surges as easy aerobic work).
+    """
+    if pace_min_per_mile is None or avg_hr is None or avg_hr <= 0 or pace_min_per_mile <= 0:
         return None
-    return (distance_m / METERS_PER_MILE) / (duration_sec / 3600.0)
+    return round((float(pace_min_per_mile) * 60.0) / float(avg_hr), 3)
 
 
-def aerobic_efficiency(distance_m: float | None, duration_sec: float | None, avg_hr: float | None) -> float | None:
-    """mph / bpm × 1000. Higher = faster at the same heart rate."""
-    if avg_hr is None or avg_hr <= 0:
+def qualifies_easy_aerobic(
+    miles: float | None,
+    duration_min: float | None,
+    avg_hr: float | None,
+    max_hr: float | None,
+    pace_min_per_mile: float | None,
+) -> bool:
+    """Steady easy samples for aerobic-form tracking. Not a clinical test."""
+    if miles is None or miles < CARDIO_MIN_MILES:
+        return False
+    if duration_min is None or duration_min < CARDIO_MIN_DURATION_MIN:
+        return False
+    if pace_min_per_mile is None or pace_min_per_mile <= 0:
+        return False
+    if avg_hr is None or avg_hr > EASY_HR_CEILING:
+        return False
+    if max_hr is not None and float(max_hr) > CARDIO_MAX_HR_CEILING:
+        return False
+    return True
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
         return None
-    mph = speed_mph(distance_m, duration_sec)
-    if mph is None:
-        return None
-    return round(mph / float(avg_hr) * 1000.0, 2)
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    if n % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2.0
 
 
 def _round(value: float | None, digits: int = 2) -> float | None:
@@ -168,8 +199,8 @@ def goal_score(miles: float | None, pace: float | None, avg_hr: float | None) ->
     else:
         pace_s = max(0.0, 1.0 - abs(pace - mid) / 2.5)
     if avg_hr is None:
-        hr_s = 0.35
-    elif avg_hr <= GOAL_HR_MAX:
+        return None
+    if avg_hr <= GOAL_HR_MAX:
         hr_s = 1.0
     else:
         hr_s = max(0.0, 1.0 - (avg_hr - GOAL_HR_MAX) / 25.0)
@@ -196,23 +227,29 @@ def _enrich_run(row: dict) -> dict:
     if max_hr is not None:
         max_hr = round(float(max_hr), 0)
     pace = pace_min_per_mile(distance_m, duration_sec)
+    duration_min = _round((duration_sec or 0) / 60.0, 1) if duration_sec else None
+    indoor_raw = row.get("indoor")
+    indoor = str(indoor_raw).strip() in {"1", "true", "True"} if indoor_raw is not None else None
+    cardio_ok = qualifies_easy_aerobic(miles, duration_min, avg_hr, max_hr, pace)
     run_date = _parse_date(row.get("local_date"))
     return {
         "id": row.get("id"),
         "local_date": row.get("local_date"),
         "week": iso_week_label(run_date) if run_date else None,
         "miles": _round(miles, 2),
-        "duration_min": _round((duration_sec or 0) / 60.0, 1) if duration_sec else None,
+        "duration_min": duration_min,
         "pace_min_per_mile": pace,
         "avg_hr": avg_hr,
         "max_hr": max_hr,
         "energy_kcal": _round(row.get("energy_kcal"), 0),
         "has_route": 1 if row.get("route_file") else 0,
+        "indoor": indoor,
         "zone": assign_zone(avg_hr),
         "easy": is_easy(avg_hr),
         "quality": is_quality(avg_hr),
         "easy_band": in_easy_band(avg_hr),
-        "efficiency": aerobic_efficiency(distance_m, duration_sec, avg_hr),
+        "cardio_sample": cardio_ok,
+        "sec_per_mi_per_bpm": sec_per_mile_per_bpm(pace, avg_hr) if cardio_ok else None,
         "goal_score": goal_score(miles, pace, avg_hr) if miles and pace else None,
     }
 
@@ -246,6 +283,43 @@ def _week_payload(week_start: date, runs: list[dict]) -> dict:
         "is_gap": len(runs) == 0,
         "zones": {k: round(v, 2) for k, v in zones.items()},
         "unknown_miles": round(unknown, 2),
+    }
+
+
+CARDIO_LIMITATIONS = (
+    "Easy aerobic form uses workout-average HR, so hills, heat, treadmill vs outdoor, "
+    "and 4x4s with a low average can still distort a week. Short jogs and high-max "
+    "surges are excluded. Apple VO₂ max is a separate Health app estimate — it is not "
+    "this score. Empty weeks stay empty; no interpolation."
+)
+
+
+def _cardio_from_runs(samples: list[dict]) -> dict:
+    paces = [r["pace_min_per_mile"] for r in samples if r.get("pace_min_per_mile") is not None]
+    hrs = [r["avg_hr"] for r in samples if r.get("avg_hr") is not None]
+    ratios = [r["sec_per_mi_per_bpm"] for r in samples if r.get("sec_per_mi_per_bpm") is not None]
+    indoor_n = sum(1 for r in samples if r.get("indoor") is True)
+    outdoor_n = sum(1 for r in samples if r.get("indoor") is False)
+    n = len(samples)
+    if n == 0:
+        status = "none"
+    elif n < CARDIO_MIN_SAMPLES:
+        status = "sparse"
+    else:
+        status = "ok"
+    median_pace = _round(_median(paces), 2) if paces else None
+    return {
+        "n": n,
+        "status": status,
+        "median_pace": median_pace,
+        "median_hr": _round(_median(hrs), 0) if hrs else None,
+        "median_sec_per_mi_per_bpm": _round(_median(ratios), 3) if ratios else None,
+        "indoor_n": indoor_n,
+        "outdoor_n": outdoor_n,
+        "unknown_surface_n": n - indoor_n - outdoor_n,
+        "pace_gap_vs_930": (
+            round(median_pace - GOAL_PACE_MAX, 2) if median_pace is not None else None
+        ),
     }
 
 
@@ -309,11 +383,15 @@ def fetch_dashboard_data(
             w.energy_kcal,
             w.route_file,
             ws.avg_value AS avg_hr,
-            ws.max_value AS max_hr
+            ws.max_value AS max_hr,
+            wm.value AS indoor
         FROM workouts w
         LEFT JOIN workout_statistics ws
           ON ws.workout_id = w.id
          AND ws.stat_type = 'HKQuantityTypeIdentifierHeartRate'
+        LEFT JOIN workout_metadata wm
+          ON wm.workout_id = w.id
+         AND wm.key = 'HKIndoorWorkout'
         WHERE w.activity_type = 'HKWorkoutActivityTypeRunning'
           AND w.distance_m IS NOT NULL AND w.distance_m > 0
         ORDER BY w.start_at
@@ -427,26 +505,58 @@ def fetch_dashboard_data(
     ]
 
     effort_starts = weeks_ending(progress_week_start + timedelta(days=6), CONSISTENCY_WEEKS)
-    efficiency_weeks = []
+    cardio_window_start = progress_week_start - timedelta(weeks=CARDIO_ROLLING_WEEKS - 1)
+    cardio_samples = [
+        r
+        for r in runs
+        if r.get("cardio_sample")
+        and _parse_date(r.get("local_date"))
+        and cardio_window_start <= _parse_date(r["local_date"]) <= (progress_week_start + timedelta(days=6))
+    ]
+    cardio_window = _cardio_from_runs(cardio_samples)
+    cardio_window["window_weeks"] = CARDIO_ROLLING_WEEKS
+    cardio_window["window_start"] = cardio_window_start.isoformat()
+    cardio_window["min_samples"] = CARDIO_MIN_SAMPLES
+    if cardio_window["status"] != "ok":
+        cardio_window["median_pace"] = None
+        cardio_window["median_hr"] = None
+        cardio_window["median_sec_per_mi_per_bpm"] = None
+        cardio_window["pace_gap_vs_930"] = None
+
+    cardio_weekly = []
     for ws in effort_starts:
-        week_runs = runs_by_week.get(iso_week_label(ws), [])
-        easy_ef = [r["efficiency"] for r in week_runs if r["easy"] and r["efficiency"] is not None]
-        all_ef = [r["efficiency"] for r in week_runs if r["efficiency"] is not None]
-        easy_pace = [r["pace_min_per_mile"] for r in week_runs if r["easy_band"] and r["pace_min_per_mile"] is not None]
-        efficiency_weeks.append(
+        week_samples = [
+            r for r in runs_by_week.get(iso_week_label(ws), []) if r.get("cardio_sample")
+        ]
+        summary = _cardio_from_runs(week_samples)
+        # Weekly points may show n=1; the rolling headline still requires min samples.
+        roll_start = ws - timedelta(weeks=CARDIO_ROLLING_WEEKS - 1)
+        roll_end = ws + timedelta(days=6)
+        roll_samples = [
+            r
+            for r in runs
+            if r.get("cardio_sample")
+            and _parse_date(r.get("local_date"))
+            and roll_start <= _parse_date(r["local_date"]) <= roll_end
+        ]
+        roll = _cardio_from_runs(roll_samples)
+        cardio_weekly.append(
             {
                 "week": iso_week_label(ws),
                 "week_start": ws.isoformat(),
-                "easy_efficiency": round(mean(easy_ef), 2) if easy_ef else None,
-                "all_efficiency": round(mean(all_ef), 2) if all_ef else None,
-                "easy_pace": round(mean(easy_pace), 2) if easy_pace else None,
+                "n": summary["n"],
+                "median_pace": summary["median_pace"],
+                "median_hr": summary["median_hr"],
+                "median_sec_per_mi_per_bpm": summary["median_sec_per_mi_per_bpm"],
+                "indoor_n": summary["indoor_n"],
+                "outdoor_n": summary["outdoor_n"],
+                "rolling_n": roll["n"],
+                "rolling_pace": roll["median_pace"] if roll["status"] == "ok" else None,
+                "rolling_sec_per_mi_per_bpm": (
+                    roll["median_sec_per_mi_per_bpm"] if roll["status"] == "ok" else None
+                ),
             }
         )
-    easy_roll = rolling_mean([w["easy_efficiency"] for w in efficiency_weeks], EFFICIENCY_ROLLING_WEEKS)
-    pace_roll = rolling_mean([w["easy_pace"] for w in efficiency_weeks], EFFICIENCY_ROLLING_WEEKS)
-    for week, ef_r, pace_r in zip(efficiency_weeks, easy_roll, pace_roll):
-        week["easy_efficiency_rolling"] = ef_r
-        week["easy_pace_rolling"] = pace_r
 
     candidates_src = [
         r
@@ -580,10 +690,25 @@ def fetch_dashboard_data(
             "pace_max": GOAL_PACE_MAX,
             "hr_max": GOAL_HR_MAX,
         },
-        "efficiency_rolling_weeks": EFFICIENCY_ROLLING_WEEKS,
+        "cardio": {
+            "rolling_weeks": CARDIO_ROLLING_WEEKS,
+            "min_samples": CARDIO_MIN_SAMPLES,
+            "min_miles": CARDIO_MIN_MILES,
+            "min_duration_min": CARDIO_MIN_DURATION_MIN,
+            "max_hr_ceiling": CARDIO_MAX_HR_CEILING,
+            "easy_hr_ceiling": EASY_HR_CEILING,
+            "formula": (
+                "Median pace and sec/mi per bpm on runs with avg HR ≤ 145, "
+                f"max HR ≤ {CARDIO_MAX_HR_CEILING} (if recorded), "
+                f"≥ {CARDIO_MIN_MILES} mi and ≥ {int(CARDIO_MIN_DURATION_MIN)} min. "
+                f"Headline needs {CARDIO_MIN_SAMPLES}+ samples in {CARDIO_ROLLING_WEEKS} weeks."
+            ),
+            "limitations": CARDIO_LIMITATIONS,
+        },
         "zone_note": (
             "Zones use workout-average HR (not time-in-zone). "
-            "Easy = avg HR ≤ 145. Quality = avg HR ≥ 148 (Z3+)."
+            "Easy share = avg HR ≤ 145. Quality = avg HR ≥ 148 (Z3+). "
+            "Easy aerobic form is stricter (distance, duration, max HR)."
         ),
     }
 
@@ -637,6 +762,7 @@ def fetch_dashboard_data(
                 ),
                 "rolling_4w_miles": rolling_4w,
                 "last_run_date": last_run_date.isoformat() if last_run_date else None,
+                "easy_form": cardio_window,
             },
             "goal": {
                 "statement": GOAL_STATEMENT,
@@ -651,7 +777,15 @@ def fetch_dashboard_data(
             "recent_runs": recent_runs,
             "scatter": scatter,
             "easy_trend": easy_trend,
-            "efficiency": efficiency_weeks,
+            "cardio": {
+                "window": cardio_window,
+                "weekly": cardio_weekly,
+                "formula": (
+                    "Median of qualifying easy runs; sec/mi per bpm = pace_sec / avg_hr. "
+                    "Lower ratio = more economical. Not Apple VO₂ max."
+                ),
+                "limitations": CARDIO_LIMITATIONS,
+            },
             "zone_weekly": week_rows(weeks_ending(progress_week_start + timedelta(days=6), 16)),
         },
         "volume": {

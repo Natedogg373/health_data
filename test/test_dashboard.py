@@ -13,15 +13,18 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from dashboard.queries import (  # noqa: E402
-    aerobic_efficiency,
     assign_zone,
     classify_week_status,
     fetch_dashboard_data,
     goal_score,
     is_easy,
     is_quality,
+    qualifies_easy_aerobic,
+    sec_per_mile_per_bpm,
 )
 from dashboard.training_config import (  # noqa: E402
+    CARDIO_MAX_HR_CEILING,
+    CARDIO_MIN_SAMPLES,
     EASY_HR_CEILING,
     GOAL_PACE_MAX,
     QUALITY_AVG_HR_MIN,
@@ -136,12 +139,23 @@ class ZoneHelpersTest(unittest.TestCase):
         self.assertTrue(is_quality(QUALITY_AVG_HR_MIN))
         self.assertFalse(is_quality(QUALITY_AVG_HR_MIN - 1))
 
-    def test_efficiency_higher_when_faster(self):
-        slow = aerobic_efficiency(5 * METERS, 10.5 * 5 * 60, 140)
-        fast = aerobic_efficiency(5 * METERS, 9.25 * 5 * 60, 140)
-        self.assertIsNotNone(slow)
-        self.assertIsNotNone(fast)
-        self.assertGreater(fast, slow)
+    def test_sec_per_mile_per_bpm(self):
+        # 10:00/mi at 140 bpm → 600/140 = 4.286 s/mi/bpm
+        ten = sec_per_mile_per_bpm(10.0, 140)
+        nine = sec_per_mile_per_bpm(9.25, 140)
+        self.assertAlmostEqual(ten, 600 / 140, places=3)
+        self.assertLess(nine, ten)
+        self.assertIsNone(sec_per_mile_per_bpm(10.0, None))
+        self.assertIsNone(sec_per_mile_per_bpm(None, 140))
+
+    def test_qualifying_easy_aerobic_filters(self):
+        self.assertTrue(qualifies_easy_aerobic(4.0, 40, 141, 152, 10.2))
+        self.assertFalse(qualifies_easy_aerobic(1.5, 16, 140, 148, 10.5))  # short
+        self.assertFalse(qualifies_easy_aerobic(5.0, 45, 159, 174, 9.05))  # 4x4-ish
+        self.assertFalse(qualifies_easy_aerobic(4.75, 40, 141, 179, 8.5))  # avg easy, max not
+        self.assertFalse(qualifies_easy_aerobic(4.0, 40, None, 150, 10.2))  # no HR
+        self.assertTrue(qualifies_easy_aerobic(4.0, 40, 141, None, 10.2))  # missing max is ok
+        self.assertFalse(qualifies_easy_aerobic(4.0, 40, 141, CARDIO_MAX_HR_CEILING + 1, 10.2))
 
     def test_goal_score_prefers_easy_five_at_goal_pace(self):
         hit = goal_score(5.0, 9.25, 144)
@@ -150,6 +164,7 @@ class ZoneHelpersTest(unittest.TestCase):
         self.assertGreater(hit, miss_hr)
         self.assertGreater(hit, miss_pace)
         self.assertGreater(hit, 85)
+        self.assertIsNone(goal_score(5.0, 9.25, None))
 
     def test_status_codes(self):
         code, label, _ = classify_week_status(16.5, 0.72, 1, 5)
@@ -204,15 +219,26 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertAlmostEqual(best["pace_min_per_mile"], 10.15, places=2)
         self.assertGreater(self.data["overview"]["goal"]["pace_gap_min"], 0)
 
-    def test_scatter_and_efficiency(self):
+    def test_scatter_and_cardio_form(self):
         scatter = self.data["running"]["scatter"]
         self.assertTrue(any(p["zone"] == "Z2" for p in scatter))
         self.assertTrue(any(p["quality"] for p in scatter))
-        ef = self.data["running"]["efficiency"]
-        self.assertTrue(any(w["easy_efficiency"] for w in ef))
-        self.assertTrue(any(w["easy_efficiency_rolling"] for w in ef))
+        cardio = self.data["running"]["cardio"]
+        self.assertEqual(cardio["window"]["status"], "ok")
+        self.assertGreaterEqual(cardio["window"]["n"], CARDIO_MIN_SAMPLES)
+        self.assertIsNotNone(cardio["window"]["median_pace"])
+        self.assertIsNotNone(cardio["window"]["median_sec_per_mi_per_bpm"])
+        self.assertTrue(any(w["median_pace"] for w in cardio["weekly"]))
+        # Interval / high-HR day must not be a cardio sample.
+        recent = {r["local_date"]: r for r in self.data["running"]["recent_runs"]}
+        self.assertFalse(recent["2026-11-06"]["cardio_sample"])
+        self.assertTrue(recent["2026-11-02"]["cardio_sample"])
         easy = self.data["running"]["easy_trend"]
         self.assertTrue(all(130 <= r["avg_hr"] <= 148 for r in easy))
+        self.assertNotIn("vo2", cardio["formula"].lower())
+        self.assertIn("apple vo", cardio["limitations"].lower().replace("₂", "2"))
+        self.assertIn("not this score", cardio["limitations"].lower())
+        self.assertIsNone(self.data["overview"]["progress"]["easy_form"].get("vo2"))
 
     def test_config_embedded(self):
         cfg = self.data["config"]
@@ -220,6 +246,27 @@ class DashboardPayloadTest(unittest.TestCase):
         names = [z["name"] for z in cfg["zones"]]
         self.assertEqual(names, ["Z1", "Z2", "Z3", "Z4", "Z5"])
         self.assertEqual(cfg["goal"]["pace_max"], GOAL_PACE_MAX)
+        self.assertEqual(cfg["cardio"]["min_samples"], CARDIO_MIN_SAMPLES)
+
+    def test_sparse_cardio_has_no_headline(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        init_schema(conn, fresh=True)
+        conn.execute(
+            """INSERT INTO user_profile (id, date_of_birth, biological_sex, export_date)
+               VALUES (1, '1990-05-01', 'HKBiologicalSexMale', '2026-11-06 12:00:00 -0500')"""
+        )
+        conn.execute("INSERT INTO sources (id, name, version) VALUES (1, 'Apple Watch', '11.0')")
+        _run(conn, "only1", date(2026, 11, 2), 4.0, 10.4, 141, 150)
+        _run(conn, "only2", date(2026, 11, 4), 3.5, 10.3, 139, 149)
+        conn.commit()
+        data = fetch_dashboard_data(conn, days=365, today=AS_OF)
+        window = data["running"]["cardio"]["window"]
+        self.assertEqual(window["n"], 2)
+        self.assertEqual(window["status"], "sparse")
+        self.assertIsNone(window["median_pace"])
+        self.assertIsNone(window["median_sec_per_mi_per_bpm"])
+        conn.close()
 
     def test_tiny_seed_does_not_crash(self):
         conn = sqlite3.connect(":memory:")

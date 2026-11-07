@@ -286,7 +286,7 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>Miles</th><th>Pace</th><th>Avg HR</th><th>Zone</th><th>Score</th>
+              <th>Date</th><th>Miles</th><th>Pace</th><th>Avg HR</th><th>Zone</th><th>Match</th>
             </tr>
           </thead>
           <tbody id="goal-candidates-body"></tbody>
@@ -309,9 +309,9 @@
           <div class="chart-wrap tall"><canvas id="chart-easy-trend"></canvas></div>
         </div>
         <div class="chart-card">
-          <h2>Aerobic efficiency</h2>
-          <p class="hint">mph / bpm × 1000 on easy runs. Up = faster at the same heart rate. Thick line is a 6-week roll.</p>
-          <div class="chart-wrap"><canvas id="chart-efficiency"></canvas></div>
+          <h2>Easy aerobic form</h2>
+          <p class="hint" id="cardio-hint">Median pace on qualifying easy runs (not Apple VO₂). Gaps stay blank.</p>
+          <div class="chart-wrap"><canvas id="chart-cardio"></canvas></div>
         </div>
         <div class="chart-card">
           <h2>Zone mix (miles by avg HR)</h2>
@@ -535,6 +535,13 @@
       const qSub = q
         ? `${q.local_date} · ${fmt(q.miles, 1)} mi · ${fmtPace(q.pace_min_per_mile)} · ${fmt(q.avg_hr, 0)} bpm`
         : "none with avg HR ≥ 148";
+      const form = p.easy_form || {};
+      const formPace = form.status === "ok" ? fmtPace(form.median_pace) : "—";
+      const formSub = form.status === "ok"
+        ? `${fmt(form.median_hr, 0)} bpm · ${fmt(form.median_sec_per_mi_per_bpm, 2)} sec/mi/bpm · n=${form.n}`
+        : form.status === "sparse"
+          ? `${form.n || 0} easy sample${form.n === 1 ? "" : "s"} (need ${DATA.config.cardio.min_samples})`
+          : "no qualifying easy runs";
 
       document.getElementById("progress-banner").innerHTML = `
         <div class="banner ${p.status}">
@@ -551,9 +558,9 @@
         statCard(p.label, `${fmt(p.miles, 1)} mi`, `${p.run_count} run${p.run_count === 1 ? "" : "s"} · target ${p.target_min}–${p.target_max}`, "run"),
         statCard("Easy share", fmtPct(p.easy_share), easySub, p.easy_share != null && p.easy_share < 0.7 ? "warn" : "accent"),
         statCard("Last quality", q ? fmtPace(q.pace_min_per_mile) : "—", qSub, "warn"),
-        statCard("4-week avg", p.rolling_4w_miles != null ? `${fmt(p.rolling_4w_miles, 1)} mi` : "—", "rolling mpw", "run"),
+        statCard("4-week avg", p.rolling_4w_miles != null ? `${fmt(p.rolling_4w_miles, 1)} mi` : "—", "volume, not fitness", "run"),
+        statCard("Easy form", formPace, formSub, "accent"),
         statCard("Resting HR", fmt(o.latest_resting_hr, 0), o.latest_recovery_date || "", "recovery"),
-        statCard("HRV", fmt(o.latest_hrv, 0), "SDNN ms", "recovery"),
       ].join("");
 
       const weekly = o.recent_weeks || [];
@@ -632,7 +639,8 @@
     function renderEffort() {
       const r = DATA.running;
       const cfg = DATA.config;
-      document.getElementById("effort-note").textContent = cfg.zone_note;
+      document.getElementById("effort-note").textContent =
+        (cfg.cardio && cfg.cardio.formula ? cfg.cardio.formula + " " : "") + (cfg.zone_note || "");
 
       const zoneNames = (cfg.zones || []).map(z => z.name);
       const scatterSets = zoneNames.map(name => {
@@ -755,28 +763,70 @@
         },
       });
 
-      const ef = r.efficiency || [];
-      makeChart("chart-efficiency", "line", {
-        labels: ef.map(w => w.week),
+      const cardio = (r.cardio && r.cardio.weekly) || [];
+      const win = (r.cardio && r.cardio.window) || {};
+      const hint = document.getElementById("cardio-hint");
+      if (hint) {
+        const bits = [];
+        if (win.status === "ok") {
+          bits.push(`6-week median ${fmtPace(win.median_pace)} at ${fmt(win.median_hr, 0)} bpm (${fmt(win.median_sec_per_mi_per_bpm, 2)} sec/mi/bpm, n=${win.n}).`);
+        } else if (win.status === "sparse") {
+          bits.push(`Only ${win.n || 0} qualifying easy run${win.n === 1 ? "" : "s"} in ${cfg.cardio.rolling_weeks} weeks — no headline score.`);
+        } else {
+          bits.push("No qualifying easy aerobic samples in this window.");
+        }
+        bits.push("Not Apple VO₂ max. Heat, hills, and treadmill vs outdoor still move this.");
+        hint.textContent = bits.join(" ");
+      }
+      makeChart("chart-cardio", "line", {
+        labels: cardio.map(w => w.week),
         datasets: [
           {
-            label: "Easy weekly",
-            data: ef.map(w => w.easy_efficiency),
+            label: "Weekly median easy pace",
+            data: cardio.map(w => w.median_pace),
             borderColor: COLORS.run + "99",
-            pointRadius: 2,
-            spanGaps: true,
+            pointRadius: 3,
+            spanGaps: false,
             tension: 0.2,
           },
           {
-            label: `${cfg.efficiency_rolling_weeks}-wk roll`,
-            data: ef.map(w => w.easy_efficiency_rolling),
+            label: `${cfg.cardio.rolling_weeks}-wk median`,
+            data: cardio.map(w => w.rolling_pace),
             borderColor: COLORS.accent,
             borderWidth: 2.5,
             pointRadius: 0,
-            spanGaps: true,
+            spanGaps: false,
             tension: 0.25,
           },
+          {
+            label: "9:00",
+            data: cardio.map(() => cfg.goal.pace_min),
+            borderColor: COLORS.ok,
+            borderDash: [5, 4],
+            pointRadius: 0,
+          },
+          {
+            label: "9:30",
+            data: cardio.map(() => cfg.goal.pace_max),
+            borderColor: COLORS.ok,
+            borderDash: [2, 4],
+            pointRadius: 0,
+          },
         ],
+      }, {
+        scales: {
+          x: chartDefaults.scales.x,
+          y: {
+            reverse: true,
+            min: 8,
+            max: 12.5,
+            ticks: {
+              color: COLORS.muted,
+              callback: v => fmtPace(v).replace("/mi", ""),
+            },
+            grid: { color: COLORS.grid },
+          },
+        },
       });
 
       const zw = r.zone_weekly || [];
