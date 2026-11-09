@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 import unittest
@@ -21,6 +22,14 @@ from dashboard.queries import (  # noqa: E402
     is_easy,
     is_quality,
     qualifies_easy_aerobic,
+)
+from dashboard.shoes import (  # noqa: E402
+    ShoeConfigError,
+    classify_shoe_status,
+    lifespan_stats,
+    load_shoes_config,
+    normalize_shoes_config,
+    query_running_mileage,
 )
 from dashboard.training_config import (  # noqa: E402
     CARDIO_MAX_HR_CEILING,
@@ -47,6 +56,39 @@ FORBIDDEN_CARDIO_SCORE_KEYS = (
 def assert_no_combined_cardio_score(test: unittest.TestCase, payload: dict) -> None:
     for key in FORBIDDEN_CARDIO_SCORE_KEYS:
         test.assertNotIn(key, payload)
+
+
+def _workout(
+    conn: sqlite3.Connection,
+    wid: str,
+    day: date,
+    miles: float,
+    activity: str = "HKWorkoutActivityTypeRunning",
+    duration_sec: float | None = None,
+) -> None:
+    distance_m = miles * METERS if miles else miles
+    start = f"{day.isoformat()}T12:00:00+00:00"
+    end = f"{day.isoformat()}T13:00:00+00:00"
+    conn.execute(
+        """
+        INSERT INTO workouts (
+            id, activity_type, start_at, end_at, start_date_local, local_date,
+            duration_sec, distance_m, energy_kcal, source_id, device, route_file, creation_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Watch', NULL, ?)
+        """,
+        (
+            wid,
+            activity,
+            start,
+            end,
+            f"{day.isoformat()} 07:00:00 -0500",
+            day.isoformat(),
+            duration_sec if duration_sec is not None else 3600,
+            distance_m,
+            100,
+            start,
+        ),
+    )
 
 
 def _run(
@@ -277,6 +319,19 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(cfg["goal"]["pace_max"], GOAL_PACE_MAX)
         self.assertEqual(cfg["cardio"]["min_samples"], CARDIO_MIN_SAMPLES)
 
+    def test_shoes_section_present(self):
+        shoes = self.data["shoes"]
+        self.assertTrue(shoes["active"]["placeholder"])
+        self.assertEqual(shoes["active"]["status"], "pending")
+        self.assertIsNone(shoes["active"]["miles"])
+        self.assertNotEqual(shoes["active"]["id"], "gel-cumulus-26-black-safety-yellow")
+        self.assertNotIn("Gel-Cumulus 26", shoes["active"]["display_name"])
+        previous = next(p for p in shoes["pairs"] if p["id"] == "gel-cumulus-26-black-safety-yellow")
+        self.assertTrue(previous["retired"])
+        self.assertFalse(previous["active"])
+        self.assertEqual(shoes["activity_filter"], "HKWorkoutActivityTypeRunning")
+        self.assertIn("running", shoes["footnote"].lower())
+
     def test_sparse_cardio_has_no_headline(self):
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
@@ -308,6 +363,219 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertGreaterEqual(data["overview"]["run_count"], 2)
         self.assertIn("progress", data["overview"])
         self.assertTrue(data["running"]["recent_runs"])
+        self.assertIn("shoes", data)
+        self.assertIn("active", data["shoes"])
+        conn.close()
+
+
+def _empty_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn, fresh=True)
+    conn.execute(
+        """INSERT INTO user_profile (id, date_of_birth, biological_sex, export_date)
+           VALUES (1, '1990-05-01', 'HKBiologicalSexMale', '2026-11-06 12:00:00 -0500')"""
+    )
+    conn.execute("INSERT INTO sources (id, name, version) VALUES (1, 'Apple Watch', '11.0')")
+    return conn
+
+
+CUMULUS = {
+    "id": "gel-cumulus-26-black-safety-yellow",
+    "active": True,
+    "brand": "ASICS",
+    "model": "Gel-Cumulus 26",
+    "color": "Black / Safety Yellow",
+    "start_date": "2025-04-16",
+    "purchased": "2025-04-16",
+}
+
+
+class ShoeTrackerTest(unittest.TestCase):
+    def test_default_config_placeholder_not_old_cumulus(self):
+        cfg = load_shoes_config()
+        self.assertEqual(cfg["lifespan"]["typical_miles"], 400)
+        self.assertEqual(cfg["lifespan"]["check_wear_miles"], 300)
+        self.assertEqual(cfg["lifespan"]["upper_miles"], 500)
+        self.assertIn("300", cfg["lifespan"]["source_note"])
+        self.assertTrue(cfg["pairs"])
+        active = next(p for p in cfg["pairs"] if p["active"])
+        self.assertTrue(active["placeholder"])
+        self.assertEqual(active["id"], "current-placeholder")
+        self.assertIsNone(active["start_date"])
+        previous = next(p for p in cfg["pairs"] if p["id"] == "gel-cumulus-26-black-safety-yellow")
+        self.assertFalse(previous["active"])
+        self.assertTrue(previous["retired"])
+        self.assertEqual(previous["start_date"], "2025-04-16")
+        self.assertEqual(previous["sku"], "1011B792-006")
+        self.assertNotIn("address", json.dumps(cfg).lower())
+        self.assertNotIn("credit card", json.dumps(cfg).lower())
+
+    def test_config_rejects_missing_fields_and_bad_dates(self):
+        with self.assertRaises(ShoeConfigError):
+            normalize_shoes_config({"pairs": [{"id": "x"}]})
+        with self.assertRaises(ShoeConfigError):
+            normalize_shoes_config(
+                {"pairs": [{**CUMULUS, "start_date": "not-a-date"}]}
+            )
+        with self.assertRaises(ShoeConfigError):
+            normalize_shoes_config(
+                {
+                    "pairs": [
+                        {**CUMULUS, "start_date": "2025-04-16", "retired_date": "2025-04-01"}
+                    ]
+                }
+            )
+        pending = normalize_shoes_config(
+            {"pairs": [{"id": "current-placeholder", "placeholder": True}]}
+        )
+        self.assertTrue(pending["pairs"][0]["placeholder"])
+        self.assertIsNone(pending["pairs"][0]["start_date"])
+
+    def test_does_not_promote_previous_pair_to_active(self):
+        cfg = normalize_shoes_config(
+            {
+                "pairs": [
+                    {**CUMULUS, "active": False, "retired": True},
+                ]
+            }
+        )
+        self.assertIsNone(cfg["active_id"])
+        self.assertFalse(cfg["pairs"][0]["active"])
+        self.assertTrue(cfg["pairs"][0]["retired"])
+
+    def test_start_date_filtering(self):
+        conn = _empty_conn()
+        _workout(conn, "before", date(2025, 4, 15), 10.0)
+        _workout(conn, "on_day", date(2025, 4, 16), 3.0)
+        _workout(conn, "first", date(2025, 4, 20), 5.0)
+        _workout(conn, "later", date(2026, 11, 4), 4.0)
+        conn.commit()
+        miles = query_running_mileage(conn, "2025-04-16")
+        self.assertEqual(miles["run_count"], 3)
+        self.assertAlmostEqual(miles["miles"], 12.0, places=1)
+        self.assertEqual(miles["first_run"], "2025-04-16")
+        self.assertEqual(miles["last_run"], "2026-11-04")
+        conn.close()
+
+    def test_running_only_excludes_walk_golf_cycle_and_zero_distance(self):
+        conn = _empty_conn()
+        _workout(conn, "run_ok", date(2025, 5, 1), 8.0)
+        _workout(conn, "walk", date(2025, 5, 2), 12.0, "HKWorkoutActivityTypeWalking")
+        _workout(conn, "golf", date(2025, 5, 3), 6.0, "HKWorkoutActivityTypeGolf")
+        _workout(conn, "ride", date(2025, 5, 4), 20.0, "HKWorkoutActivityTypeCycling")
+        _workout(conn, "zero", date(2025, 5, 5), 0.0)
+        conn.execute(
+            """
+            INSERT INTO workouts (
+                id, activity_type, start_at, end_at, start_date_local, local_date,
+                duration_sec, distance_m, energy_kcal, source_id, device, route_file, creation_date
+            ) VALUES ('null_dist', 'HKWorkoutActivityTypeRunning', '2025-05-06T12:00:00+00:00',
+                      '2025-05-06T13:00:00+00:00', '2025-05-06 07:00:00 -0500', '2025-05-06',
+                      3600, NULL, 100, 1, 'Watch', NULL, '2025-05-06T12:00:00+00:00')
+            """
+        )
+        conn.commit()
+        miles = query_running_mileage(conn, "2025-04-16")
+        self.assertEqual(miles["run_count"], 1)
+        self.assertAlmostEqual(miles["miles"], 8.0, places=1)
+        conn.close()
+
+    def test_retired_date_stops_counting(self):
+        conn = _empty_conn()
+        _workout(conn, "in", date(2025, 6, 1), 10.0)
+        _workout(conn, "out", date(2025, 7, 1), 10.0)
+        conn.commit()
+        miles = query_running_mileage(conn, "2025-04-16", "2025-06-15")
+        self.assertEqual(miles["run_count"], 1)
+        self.assertAlmostEqual(miles["miles"], 10.0, places=1)
+        conn.close()
+
+    def test_lifespan_thresholds(self):
+        self.assertEqual(classify_shoe_status(0)[0], "fresh")
+        self.assertEqual(classify_shoe_status(299.9)[0], "fresh")
+        self.assertEqual(classify_shoe_status(300)[0], "check_wear")
+        self.assertEqual(classify_shoe_status(399.9)[0], "check_wear")
+        self.assertEqual(classify_shoe_status(400)[0], "replace")
+        code, label, detail = classify_shoe_status(476.7)
+        self.assertEqual(code, "replace")
+        self.assertIn("Replace", label)
+        self.assertIn("inspect", label.lower() + detail.lower())
+        self.assertNotIn("plenty of life", detail.lower())
+        self.assertNotIn("still fine", detail.lower())
+        self.assertEqual(classify_shoe_status(500)[0], "past_lifespan")
+        self.assertEqual(classify_shoe_status(620)[0], "past_lifespan")
+
+    def test_lifespan_remaining_math(self):
+        fresh = lifespan_stats(244.5)
+        self.assertEqual(fresh["status"], "fresh")
+        self.assertAlmostEqual(fresh["remaining_to_typical"], 155.5, places=1)
+        self.assertEqual(fresh["miles_past_typical"], 0)
+        worn = lifespan_stats(476.7)
+        self.assertEqual(worn["status"], "replace")
+        self.assertEqual(worn["remaining_to_typical"], 0)
+        self.assertAlmostEqual(worn["miles_past_typical"], 76.7, places=1)
+        self.assertAlmostEqual(worn["remaining_to_upper"], 23.3, places=1)
+        self.assertGreaterEqual(worn["pct_of_typical"], 100)
+
+    def test_payload_uses_injected_config_and_real_miles(self):
+        conn = _empty_conn()
+        _workout(conn, "old", date(2025, 4, 10), 50.0)
+        _workout(conn, "run1", date(2025, 4, 20), 5.0)
+        _workout(conn, "run2", date(2026, 11, 4), 4.7)
+        _workout(conn, "walk", date(2025, 5, 1), 30.0, "HKWorkoutActivityTypeWalking")
+        conn.commit()
+        retired = {
+            "id": "old-pair",
+            "active": False,
+            "brand": "ASICS",
+            "model": "Gel-Cumulus 25",
+            "start_date": "2024-01-01",
+            "retired_date": "2025-04-15",
+        }
+        data = fetch_dashboard_data(
+            conn,
+            days=365,
+            today=date(2026, 11, 6),
+            shoes_config={"pairs": [retired, CUMULUS]},
+        )
+        shoes = data["shoes"]
+        self.assertEqual(shoes["active"]["id"], "gel-cumulus-26-black-safety-yellow")
+        self.assertAlmostEqual(shoes["active"]["miles"], 9.7, places=1)
+        self.assertEqual(shoes["active"]["run_count"], 2)
+        self.assertEqual(shoes["active"]["status"], "fresh")
+        old = next(p for p in shoes["pairs"] if p["id"] == "old-pair")
+        self.assertFalse(old["active"])
+        self.assertAlmostEqual(old["miles"], 50.0, places=1)
+        self.assertIn("running", shoes["footnote"].lower())
+        conn.close()
+
+    def test_placeholder_skips_mileage(self):
+        conn = _empty_conn()
+        _workout(conn, "run1", date(2025, 4, 20), 10.0)
+        conn.commit()
+        data = fetch_dashboard_data(
+            conn,
+            days=365,
+            today=date(2026, 11, 6),
+            shoes_config={
+                "pairs": [
+                    {
+                        "id": "current-placeholder",
+                        "placeholder": True,
+                        "active": True,
+                    },
+                    {**CUMULUS, "active": False, "retired": True},
+                ]
+            },
+        )
+        self.assertEqual(data["shoes"]["active"]["id"], "current-placeholder")
+        self.assertEqual(data["shoes"]["active"]["status"], "pending")
+        self.assertIsNone(data["shoes"]["active"]["miles"])
+        prev = next(p for p in data["shoes"]["pairs"] if p["id"] == CUMULUS["id"])
+        self.assertEqual(prev["status"], "previous")
+        self.assertFalse(prev["active"])
+        self.assertAlmostEqual(prev["miles"], 10.0, places=1)
         conn.close()
 
 

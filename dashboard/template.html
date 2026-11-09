@@ -246,10 +246,134 @@
     }
     .gaps { font-size: 0.85rem; color: var(--muted); }
     .gaps strong { color: var(--bad); font-weight: 600; }
+    .overview-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.9fr);
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+      align-items: stretch;
+    }
+    .overview-top .banner { margin-bottom: 0; }
+    .shoe-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.95rem 1.05rem 1.1rem;
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      gap: 0.95rem 1.05rem;
+    }
+    .shoe-card.fresh { border-color: var(--ok); }
+    .shoe-card.check_wear { border-color: var(--warn); }
+    .shoe-card.replace, .shoe-card.past_lifespan { border-color: var(--bad); }
+    .shoe-card.pending, .shoe-card.previous { border-color: var(--border); }
+    .shoe-photo {
+      background: #f3f5f7;
+      border-radius: 8px;
+      padding: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      grid-row: span 2;
+    }
+    .shoe-photo img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .shoe-photo.placeholder {
+      min-height: 120px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-align: center;
+      padding: 0.8rem 0.5rem;
+    }
+    .shoe-kicker {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .shoe-title { font-size: 1.05rem; font-weight: 600; margin-top: 0.1rem; }
+    .shoe-meta { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; }
+    .shoe-miles {
+      font-size: 1.45rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-top: 0.45rem;
+    }
+    .shoe-card.fresh .shoe-miles { color: var(--ok); }
+    .shoe-card.check_wear .shoe-miles { color: var(--warn); }
+    .shoe-card.replace .shoe-miles,
+    .shoe-card.past_lifespan .shoe-miles { color: var(--bad); }
+    .shoe-card.pending .shoe-miles,
+    .shoe-card.previous .shoe-miles { color: var(--muted); }
+    .shoe-status {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-top: 0.1rem;
+    }
+    .shoe-card.fresh .shoe-status { color: var(--ok); }
+    .shoe-card.check_wear .shoe-status { color: var(--warn); }
+    .shoe-card.replace .shoe-status,
+    .shoe-card.past_lifespan .shoe-status { color: var(--bad); }
+    .shoe-card.pending .shoe-status,
+    .shoe-card.previous .shoe-status { color: var(--muted); }
+    .shoe-detail { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
+    .shoe-meter-wrap { grid-column: 1 / -1; }
+    .shoe-meter {
+      position: relative;
+      height: 12px;
+      background: var(--surface2);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .shoe-meter-fill {
+      height: 100%;
+      border-radius: 99px;
+      max-width: 100%;
+    }
+    .shoe-card.fresh .shoe-meter-fill { background: var(--ok); }
+    .shoe-card.check_wear .shoe-meter-fill { background: var(--warn); }
+    .shoe-card.replace .shoe-meter-fill,
+    .shoe-card.past_lifespan .shoe-meter-fill { background: var(--bad); }
+    .shoe-meter-mark {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: rgba(232, 237, 244, 0.55);
+    }
+    .shoe-meter-legend {
+      position: relative;
+      height: 1.15rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+    .shoe-meter-legend span { position: absolute; top: 0; white-space: nowrap; }
+    .shoe-meter-legend .l0 { left: 0; }
+    .shoe-meter-legend .l-check { transform: translateX(-50%); }
+    .shoe-meter-legend .l-typical { transform: translateX(-50%); }
+    .shoe-meter-legend .l-upper { right: 0; }
+    .shoe-footnote {
+      grid-column: 1 / -1;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+    .shoe-history td.num, .shoe-history th.num { text-align: right; }
+    #shoes-active .shoe-card { max-width: 760px; }
+    @media (max-width: 900px) {
+      .overview-top { grid-template-columns: 1fr; }
+    }
     @media (max-width: 600px) {
       main { padding: 1rem; }
       .stat .value { font-size: 1.35rem; }
       header { padding: 0.85rem 1rem 0; }
+      .shoe-card { grid-template-columns: 1fr; }
+      .shoe-photo { grid-row: auto; max-width: 220px; }
     }
   </style>
 </head>
@@ -265,13 +389,17 @@
       <button role="tab" data-tab="effort">Effort</button>
       <button role="tab" data-tab="volume">Volume</button>
       <button role="tab" data-tab="recovery">Recovery</button>
+      <button role="tab" data-tab="shoes">Shoes</button>
       <button role="tab" data-tab="more">More</button>
     </nav>
   </header>
 
   <main>
     <section id="overview" class="panel active" role="tabpanel">
-      <div id="progress-banner"></div>
+      <div class="overview-top">
+        <div id="progress-banner"></div>
+        <div id="overview-shoe"></div>
+      </div>
       <div class="stats" id="overview-stats"></div>
       <div class="charts">
         <div class="chart-card full">
@@ -375,6 +503,26 @@
       </div>
     </section>
 
+    <section id="shoes" class="panel" role="tabpanel">
+      <p class="section-note" id="shoes-note"></p>
+      <div id="shoes-active"></div>
+      <div id="shoes-previous" style="margin-top:1.25rem"></div>
+      <div class="table-wrap" style="margin-top:1.25rem">
+        <h2>Shoe log</h2>
+        <p class="hint">Add the current pair in <code>dashboard/shoes.json</code> (replace the placeholder) and set the previous pair’s <code>retired_date</code> when known. Mileage is recomputed from running workouts on every dashboard build.</p>
+        <table class="shoe-history">
+          <thead>
+            <tr>
+              <th>Pair</th><th>Color</th><th>Start</th><th>Retired</th>
+              <th class="num">Runs</th><th class="num">Miles</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="shoes-history-body"></tbody>
+        </table>
+      </div>
+      <p class="lifetime" id="shoes-source"></p>
+    </section>
+
     <section id="more" class="panel" role="tabpanel">
       <p class="section-note">Daily activity rings and workout-type mix — useful context, not the training goal.</p>
       <div class="stats" id="more-stats"></div>
@@ -475,6 +623,101 @@
     function fmtPct(n) {
       if (n == null) return "—";
       return `${Math.round(n * 100)}%`;
+    }
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[ch]));
+    }
+
+    function fmtMiles(n) {
+      if (n == null || Number.isNaN(n)) return "—";
+      return Number(n).toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+    }
+
+    function shoeRemainingLine(pair) {
+      if (!pair || pair.miles == null || pair.placeholder || pair.status === "pending") return "";
+      if (pair.miles >= pair.upper_miles) {
+        return `${fmtMiles(pair.miles_past_upper)} mi past the ${pair.upper_miles} upper estimate`;
+      }
+      if (pair.miles >= pair.typical_miles) {
+        return `0 mi remaining vs typical ${pair.typical_miles} (${fmtMiles(pair.miles_past_typical)} over) · ${fmtMiles(pair.remaining_to_upper)} mi to ${pair.upper_miles}`;
+      }
+      return `${fmtMiles(pair.remaining_to_typical)} mi remaining vs typical ${pair.typical_miles}`;
+    }
+
+    function shoeCardHtml(pair, footnote, kicker) {
+      if (!pair) {
+        return `<div class="shoe-card pending"><div class="shoe-kicker">${esc(kicker || "Current shoes")}</div><div class="shoe-title">No active pair</div><p class="shoe-detail">Add the current pair in dashboard/shoes.json. Do not mark a previous pair as current.</p></div>`;
+      }
+      const pending = Boolean(pair.placeholder || pair.status === "pending");
+      const previous = Boolean(pair.retired || pair.status === "previous") && !pending;
+      const heading = kicker || (previous ? "Previous pair" : pending ? "Current shoes (placeholder)" : "Current shoes");
+      const upper = pair.upper_miles || 500;
+      const checkPct = Math.min(100, ((pair.check_wear_miles || 300) / upper) * 100);
+      const typicalPct = Math.min(100, ((pair.typical_miles || 400) / upper) * 100);
+      const fillPct = pending || pair.miles == null ? 0 : Math.min(100, (pair.miles / upper) * 100);
+      const photo = pair.photo && !pending
+        ? `<div class="shoe-photo"><img src="${esc(pair.photo)}" alt="${esc(pair.photo_alt || pair.display_name)}" width="1280" height="1280"></div>`
+        : `<div class="shoe-photo placeholder">${pending ? "Photo pending — not the April 2025 Cumulus 26" : "No photo"}</div>`;
+      const sizeBits = [pair.gender, pair.size ? `size ${pair.size}` : null, pair.width ? `width ${pair.width}` : null].filter(Boolean).join(" · ");
+      const bought = pending
+        ? "Purchase date not recorded yet"
+        : pair.purchased
+          ? `Purchased ${esc(pair.purchased)}`
+          : pair.start_date
+            ? `Started ${esc(pair.start_date)}`
+            : "Start date unknown";
+      const retailer = !pending && pair.retailer ? ` · ${esc(pair.retailer)}` : "";
+      const runs = pending ? "Mileage not counted yet" : `${pair.run_count || 0} run${pair.run_count === 1 ? "" : "s"}`;
+      const window = pending
+        ? "waiting on start date"
+        : pair.last_run
+          ? `through ${esc(pair.last_run)} in this database`
+          : "from the current database";
+      const first = !pending && pair.first_run ? `first counted run ${esc(pair.first_run)}` : "";
+      const asOf = DATA.meta && (DATA.meta.generated_at || DATA.meta.as_of);
+      let stale = "";
+      if (!pending && pair.last_run && asOf) {
+        const last = new Date(pair.last_run + "T00:00:00");
+        const gen = new Date(String(asOf).slice(0, 10) + "T00:00:00");
+        const days = Math.round((gen - last) / 86400000);
+        if (days >= 28) {
+          stale = ` Last logged run in this database is ${pair.last_run} (${days} days before the page date) — import a newer Apple Health export to refresh these miles.`;
+        }
+      }
+      const meter = pending ? "" : `
+          <div class="shoe-meter-wrap">
+            <div class="shoe-meter" role="img" aria-label="${fmtMiles(pair.miles)} of ${upper} mile upper estimate">
+              <div class="shoe-meter-fill" style="width:${fillPct}%"></div>
+              <div class="shoe-meter-mark" style="left:${checkPct}%" title="${pair.check_wear_miles} check for wear"></div>
+              <div class="shoe-meter-mark" style="left:${typicalPct}%" title="${pair.typical_miles} typical"></div>
+            </div>
+            <div class="shoe-meter-legend">
+              <span class="l0">0</span>
+              <span class="l-check" style="left:${checkPct}%">${pair.check_wear_miles} check</span>
+              <span class="l-typical" style="left:${typicalPct}%">${pair.typical_miles} typical</span>
+              <span class="l-upper">${upper} upper</span>
+            </div>
+          </div>`;
+      const remaining = shoeRemainingLine(pair);
+      return `
+        <article class="shoe-card ${esc(pair.status || (pending ? "pending" : ""))}">
+          ${photo}
+          <div>
+            <div class="shoe-kicker">${esc(heading)}</div>
+            <div class="shoe-title">${esc(pair.display_name)}</div>
+            <div class="shoe-meta">${esc(pair.color || "")}${sizeBits ? ` · ${esc(sizeBits)}` : ""}</div>
+            <div class="shoe-meta">${bought}${retailer}</div>
+            <div class="shoe-miles">${pending ? "—" : fmtMiles(pair.miles) + " running mi"}</div>
+            <div class="shoe-status">${esc(pair.status_label || (pending ? "Details pending" : ""))}</div>
+            ${remaining ? `<div class="shoe-detail">${esc(remaining)}</div>` : ""}
+            <div class="shoe-detail">${esc(runs)}${pending ? ` · ${window}` : ` · ${window}`}${first ? ` · ${first}` : ""}</div>
+          </div>
+          ${meter}
+          <p class="shoe-footnote">${esc((footnote || pair.status_detail || "") + stale)}</p>
+        </article>`;
     }
 
     function activityLabel(type) {
@@ -634,6 +877,61 @@
 
       document.getElementById("lifetime-note").textContent =
         `Lifetime (less important than the last 8 weeks): ${o.run_count} runs, ${fmt(o.total_miles, 0)} mi, ${fmt(o.total_hours, 0)} hours across ${o.workout_count} workouts.`;
+
+      const shoeMount = document.getElementById("overview-shoe");
+      if (shoeMount) {
+        const shoes = DATA.shoes || {};
+        const kicker = shoes.active && shoes.active.placeholder ? "Current shoes (placeholder)" : "Current shoes";
+        shoeMount.innerHTML = shoeCardHtml(shoes.active, shoes.footnote, kicker);
+      }
+    }
+
+    function renderShoes() {
+      const shoes = DATA.shoes || {};
+      const note = document.getElementById("shoes-note");
+      if (note) {
+        const life = shoes.lifespan || {};
+        note.textContent = `${life.source_note || ""} Mileage is recomputed from the workouts database on every dashboard build.`;
+      }
+      const activeMount = document.getElementById("shoes-active");
+      if (activeMount) {
+        const footnote = [shoes.active && shoes.active.status_detail, shoes.footnote].filter(Boolean).join(" ");
+        const kicker = shoes.active && shoes.active.placeholder ? "Current shoes (placeholder)" : "Current shoes";
+        activeMount.innerHTML = shoeCardHtml(shoes.active, footnote, kicker);
+      }
+      const prevMount = document.getElementById("shoes-previous");
+      if (prevMount) {
+        const previous = (shoes.pairs || []).filter(p => !p.active && !p.placeholder);
+        prevMount.innerHTML = previous.map(pair => shoeCardHtml(pair, pair.status_detail, "Previous pair")).join("");
+      }
+      const body = document.getElementById("shoes-history-body");
+      if (body) {
+        const rows = shoes.pairs || [];
+        body.innerHTML = rows.map(pair => {
+          const badge = pair.placeholder
+            ? ' <span class="badge">Placeholder</span>'
+            : pair.active
+              ? ' <span class="badge easy">Active</span>'
+              : ' <span class="badge">Previous</span>';
+          return `
+          <tr>
+            <td>${esc(pair.display_name)}${badge}</td>
+            <td>${esc(pair.color || "—")}</td>
+            <td>${esc(pair.start_date || "—")}</td>
+            <td>${esc(pair.retired_date || (pair.retired ? "unknown" : "—"))}</td>
+            <td class="num">${pair.placeholder ? "—" : (pair.run_count || 0)}</td>
+            <td class="num">${pair.placeholder ? "—" : fmtMiles(pair.miles)}</td>
+            <td>${esc(pair.status_label)}</td>
+          </tr>`;
+        }).join("") || `<tr><td colspan="7">No shoes configured.</td></tr>`;
+      }
+      const source = document.getElementById("shoes-source");
+      if (source && shoes.lifespan) {
+        const url = shoes.lifespan.source_url;
+        source.innerHTML = url
+          ? `ASICS 300–500 mile guidance: <a href="${esc(url)}" style="color:var(--accent)">${esc(url)}</a>. Typical target used here: ${shoes.lifespan.typical_miles} miles.`
+          : `Typical target used here: ${shoes.lifespan.typical_miles} miles (ASICS 300–500 range).`;
+      }
     }
 
     function renderEffort() {
@@ -1108,6 +1406,7 @@
     renderEffort();
     renderVolume();
     renderRecovery();
+    renderShoes();
     renderMore();
   </script>
 </body>

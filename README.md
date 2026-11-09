@@ -59,6 +59,15 @@ Open `../data/training.db` with any SQLite client. Useful views:
 
 Training summaries for coaching review are written to `../data/summaries/`.
 
+## Shoe mileage tracker
+
+The dashboard Overview card (and Shoes tab) tracks miles on the current running shoes.
+
+- Roster: `dashboard/shoes.json` — add a new pair (`active: true`) and mark the previous pair `retired: true` / `retired_date` when known. Until the current pair’s purchase details are recorded, keep the `placeholder` entry as the active shoe rather than treating an old pair as current. Do not put shipping addresses or payment details in this file.
+- Photo: `dashboard/assets/` (kept in the repo; see attribution there). The Node server exposes that folder at `/dashboard/assets`. Previous-pair photos belong on the previous-pair card, not the current-shoe slot.
+- Mileage is **recomputed from `training.db` on every** `python dashboard/build_dashboard.py` (and after `POST /api/import`). It sums `HKWorkoutActivityTypeRunning` workouts with `distance_m > 0` on/after the pair’s `start_date` (and through `retired_date` when set). Placeholders with no start date count nothing. Walking, golf, and cycling are not counted.
+- Lifespan: ASICS’ published guidance is replace every **300–500 miles** ([source](https://www.asics.com/us/en-us/blog/how-do-running-shoes-wear-over-time/)). The tracker uses **400** as the typical midpoint, 300 as “check for wear,” and 500 as the upper estimate. That is an estimate, not a guarantee.
+
 ## Deploy (dashboard + fitness API)
 
 The Node app serves the static dashboard at `/` and a token-protected JSON API at `/api/*`. `training.db` is **not** in git — it lives on a Coolify persistent volume.
