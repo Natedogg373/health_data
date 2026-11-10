@@ -35,14 +35,17 @@ Options:
 1. Command prints `Wrote index.html (... bytes)` with exit code 0
 2. Open `index.html` locally in a browser (file:// or simple HTTP server)
 3. Confirm header shows the 5-mile zone-2 goal, date range, and tabs load:
-   Overview (progress strip + easy form), Effort (pace/HR, easy aerobic form, zones),
-   Volume (mileage + gaps), Recovery, More (activity / workout types)
+   Overview (progress strip + current-shoe card + easy form), Effort (pace/HR, easy aerobic form, zones),
+   Volume (mileage + gaps), Recovery, Shoes (pair log), More (activity / workout types)
 
 ## Architecture
 
 | File | Role |
 |------|------|
 | `dashboard/training_config.py` | Zone bands, easy HR ceiling, weekly target, goal |
+| `dashboard/shoes.json` | Running-shoe roster (start/retire dates, photo path) |
+| `dashboard/shoes.py` | Running-only mileage + 300–500/400 lifespan status |
+| `dashboard/assets/` | Local product photos (do not hotlink a CDN) |
 | `dashboard/queries.py` | SQL → JSON payload sections |
 | `dashboard/template.html` | HTML/CSS/JS shell; `__DASHBOARD_DATA__` placeholder |
 | `dashboard/build_dashboard.py` | Queries DB, embeds JSON, writes `index.html` |

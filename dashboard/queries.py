@@ -6,6 +6,7 @@ import sqlite3
 from datetime import date, timedelta
 from statistics import mean
 
+from dashboard.shoes import build_shoes_payload
 from dashboard.training_config import (
     CARDIO_MAX_HR_CEILING,
     CARDIO_MIN_DURATION_MIN,
@@ -318,14 +319,17 @@ def fetch_dashboard_data(
     conn: sqlite3.Connection,
     days: int = 365,
     today: date | None = None,
+    shoes_config: dict | None = None,
 ) -> dict:
     """Return all dashboard payload sections.
 
     `today` is injectable so tests can freeze the calendar. Progress uses the
     current ISO week when it has runs; otherwise the latest logged week.
+    Shoe mileage is recomputed from workouts on every build.
     """
     as_of = today or date.today()
     cutoff = (as_of - timedelta(days=days)).isoformat()
+    shoes = build_shoes_payload(conn, config=shoes_config)
 
     profile = _one(conn, "SELECT date_of_birth, biological_sex, export_date FROM user_profile WHERE id = 1")
     date_range = _one(
@@ -793,4 +797,5 @@ def fetch_dashboard_data(
         "workouts": {
             "by_type": workout_types,
         },
+        "shoes": shoes,
     }

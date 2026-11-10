@@ -1,0 +1,45 @@
+{
+  "lifespan": {
+    "typical_miles": 400,
+    "check_wear_miles": 300,
+    "upper_miles": 500,
+    "source_url": "https://www.asics.com/us/en-us/blog/how-do-running-shoes-wear-over-time/",
+    "source_note": "ASICS generally recommends replacing running shoes every 300–500 miles, depending on the runner, surface, and wear. They do not publish a precise official mileage rating per model. This dashboard uses 400 miles as the typical midpoint, 300 as the check-for-wear mark, and 500 as the upper end of that range. Lifespan is an estimate, not a guarantee."
+  },
+  "footnote": "Running and walking miles count from each pair’s start date. Golf, cycling, hiking, and other activities are not added.",
+  "pairs": [
+    {
+      "id": "asics-2026-08-01",
+      "active": true,
+      "brand": "ASICS",
+      "model": null,
+      "purchased": "2026-08-01",
+      "start_date": "2026-08-01",
+      "retired_date": null,
+      "color": null,
+      "size": null,
+      "photo": null
+    },
+    {
+      "id": "gel-cumulus-26-black-safety-yellow",
+      "active": false,
+      "retired": true,
+      "brand": "ASICS",
+      "model": "Gel-Cumulus 26",
+      "color": "Black / Safety Yellow",
+      "gender": "Men's",
+      "size": "10.5",
+      "width": "D (normal)",
+      "sku": "1011B792-006",
+      "purchased": "2025-04-16",
+      "start_date": "2025-04-16",
+      "retired_date": "2026-07-31",
+      "retailer": "FleetFeet.com",
+      "order_number": "152692880",
+      "price_usd": 110,
+      "photo": "dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg",
+      "photo_alt": "Men's ASICS Gel-Cumulus 26 in Black / Safety Yellow, side profile",
+      "notes": "Previous pair. Purchased 2025-04-16 on FleetFeet.com (order 152692880). Retired the day before the 2026-08-01 ASICS pair started. Price was $110 before shipping and tax. Not the current shoes."
+    }
+  ]
+}

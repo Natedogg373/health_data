@@ -96,6 +96,16 @@ test("GET / serves the dashboard", async () => {
   const res = await request(base, "/");
   assert.equal(res.status, 200);
   assert.match(res.text, /Training Dashboard/);
+  assert.match(res.text, /Current shoes/);
+  assert.match(res.text, /data-tab="shoes"/);
+  assert.match(res.text, /ASICS \(model unknown\)/);
+  assert.doesNotMatch(res.text, /GEL-KAYANO 33/);
+});
+
+test("GET /dashboard/assets serves the previous-pair photo", async () => {
+  const cumulus = await request(base, "/dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg");
+  assert.equal(cumulus.status, 200);
+  assert.match(cumulus.headers.get("content-type") || "", /image\/jpeg/);
 });
 
 test("GET /health is public", async () => {

@@ -92,6 +92,15 @@ function createApp(options = {}) {
     res.json({ ok: true });
   });
 
+  app.use(
+    "/dashboard/assets",
+    express.static(path.join(repoRoot, "dashboard", "assets"), {
+      index: false,
+      fallthrough: false,
+      dotfiles: "ignore",
+    }),
+  );
+
   const api = express.Router();
   api.use(rateLimit({ windowMs: 60_000, max: 120 }));
   api.use(requireApiToken(token && String(token).trim() ? String(token) : null));
