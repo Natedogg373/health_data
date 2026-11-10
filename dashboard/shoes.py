@@ -15,9 +15,11 @@ import sqlite3
 
 METERS_PER_MILE = 1609.344
 RUNNING_TYPE = "HKWorkoutActivityTypeRunning"
+WALKING_TYPE = "HKWorkoutActivityTypeWalking"
+COUNTED_ACTIVITY_TYPES = (RUNNING_TYPE, WALKING_TYPE)
 DEFAULT_SHOES_PATH = Path(__file__).resolve().parent / "shoes.json"
 
-REQUIRED_REAL_PAIR_FIELDS = ("id", "brand", "model", "start_date")
+REQUIRED_REAL_PAIR_FIELDS = ("id", "brand", "start_date")
 
 
 class ShoeConfigError(ValueError):
@@ -43,6 +45,21 @@ def load_shoes_config(path: Path | None = None) -> dict:
     except json.JSONDecodeError as exc:
         raise ShoeConfigError(f"Shoe config is not valid JSON: {config_path}") from exc
     return normalize_shoes_config(raw)
+
+
+def _optional_text(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _display_name(brand: str, model: str | None, explicit: str | None) -> str:
+    if explicit:
+        return str(explicit)
+    if model:
+        return f"{brand} {model}"
+    return f"{brand} (model unknown)"
 
 
 def normalize_shoes_config(raw: dict | None) -> dict:
@@ -84,11 +101,12 @@ def normalize_shoes_config(raw: dict | None) -> dict:
             retired = _parse_date(item.get("retired_date"))
             purchased = _parse_date(item.get("purchased")) or start
             brand = str(item.get("brand") or "")
-            model = str(item.get("model") or "")
+            model = str(item.get("model") or "").strip() or None
             display_name = str(
                 item.get("display_name") or "Current pair — details pending"
             )
             active = bool(item.get("active", True))
+            photo = None
         else:
             missing = [field for field in REQUIRED_REAL_PAIR_FIELDS if not item.get(field)]
             if missing:
@@ -101,10 +119,11 @@ def normalize_shoes_config(raw: dict | None) -> dict:
             if retired is not None and retired < start:
                 raise ShoeConfigError(f"Shoe {pair_id} retired_date is before start_date")
             brand = str(item["brand"])
-            model = str(item["model"])
-            display_name = str(item.get("display_name") or f"{brand} {model}")
+            model = str(item.get("model") or "").strip() or None
+            display_name = _display_name(brand, model, item.get("display_name"))
             marked_retired = bool(item.get("retired")) or retired is not None
             active = False if marked_retired else bool(item.get("active", True))
+            photo = item.get("photo") or None
         pairs.append(
             {
                 "id": pair_id,
@@ -113,36 +132,34 @@ def normalize_shoes_config(raw: dict | None) -> dict:
                 "retired": (not is_placeholder)
                 and (bool(item.get("retired")) or retired is not None or not active),
                 "brand": brand or None,
-                "model": model or None,
+                "model": model,
                 "display_name": display_name,
-                "color": item.get("color"),
-                "gender": item.get("gender"),
-                "size": item.get("size"),
-                "width": item.get("width"),
-                "sku": item.get("sku"),
+                "color": _optional_text(item.get("color")),
+                "gender": _optional_text(item.get("gender")),
+                "size": _optional_text(item.get("size")),
+                "width": _optional_text(item.get("width")),
+                "sku": _optional_text(item.get("sku")),
                 "purchased": purchased.isoformat() if purchased else None,
                 "start_date": start.isoformat() if start else None,
                 "retired_date": retired.isoformat() if retired else None,
                 "retailer": item.get("retailer"),
                 "order_number": item.get("order_number"),
                 "price_usd": item.get("price_usd"),
-                "photo": None if is_placeholder else item.get("photo"),
+                "photo": photo,
                 "photo_alt": item.get("photo_alt")
                 or (
-                    f"{brand} {model} {item.get('color') or ''}".strip()
-                    if not is_placeholder
-                    else "No product photo yet"
+                    "No product photo yet"
+                    if is_placeholder or not photo
+                    else f"{brand} {model or ''}".strip()
                 ),
+                "photo_stand_in": bool(item.get("photo_stand_in")),
+                "photo_note": item.get("photo_note"),
                 "pending_detail": item.get("pending_detail"),
             }
         )
 
-    # Never silently promote a previous pair to current. Explicit active
-    # non-placeholder pairs win; otherwise a placeholder may stand in.
     real_active = [
-        p
-        for p in pairs
-        if p["active"] and not p["placeholder"] and not p["retired"]
+        p for p in pairs if p["active"] and not p["placeholder"] and not p["retired"]
     ]
     placeholder_active = [p for p in pairs if p["placeholder"] and p["active"]]
     active_id = None
@@ -169,8 +186,8 @@ def normalize_shoes_config(raw: dict | None) -> dict:
         },
         "footnote": raw.get("footnote")
         or (
-            "Only running miles count. Walking, golf, cycling, and other activities "
-            "are not added — we cannot assume those were done in these shoes."
+            "Running and walking miles count from each pair’s start date. "
+            "Golf, cycling, hiking, and other activities are not added."
         ),
         "active_id": active_id,
         "pairs": pairs,
@@ -242,7 +259,7 @@ def lifespan_stats(
     typical_miles: float = 400,
     upper_miles: float = 500,
 ) -> dict:
-    miles_r = round(float(miles), 1)
+    miles_r = round(float(miles), 2)
     status, label, detail = classify_shoe_status(
         miles_r, check_wear_miles, typical_miles, upper_miles
     )
@@ -251,10 +268,10 @@ def lifespan_stats(
         "typical_miles": typical_miles,
         "check_wear_miles": check_wear_miles,
         "upper_miles": upper_miles,
-        "remaining_to_typical": round(max(0.0, typical_miles - miles_r), 1),
-        "miles_past_typical": round(max(0.0, miles_r - typical_miles), 1),
-        "remaining_to_upper": round(max(0.0, upper_miles - miles_r), 1),
-        "miles_past_upper": round(max(0.0, miles_r - upper_miles), 1),
+        "remaining_to_typical": round(max(0.0, typical_miles - miles_r), 2),
+        "miles_past_typical": round(max(0.0, miles_r - typical_miles), 2),
+        "remaining_to_upper": round(max(0.0, upper_miles - miles_r), 2),
+        "miles_past_upper": round(max(0.0, miles_r - upper_miles), 2),
         "pct_of_typical": round(100.0 * miles_r / typical_miles, 1) if typical_miles else 0.0,
         "pct_of_upper": round(min(100.0, 100.0 * miles_r / upper_miles), 1) if upper_miles else 0.0,
         "status": status,
@@ -263,38 +280,89 @@ def lifespan_stats(
     }
 
 
-def query_running_mileage(
+def query_shoe_mileage(
     conn: sqlite3.Connection,
     start_date: str,
     end_date: str | None = None,
 ) -> dict:
-    """Sum running miles in [start_date, end_date] (inclusive).
+    """Sum running + walking miles in [start_date, end_date] (inclusive).
 
-    Only HKWorkoutActivityTypeRunning with distance_m > 0. Walking / golf /
-    cycling and zero-distance jogs are excluded.
+    Golf, cycling, hiking, and other activity types are excluded. Zero or
+    null distance rows are excluded.
     """
+    placeholders = ",".join("?" * len(COUNTED_ACTIVITY_TYPES))
     row = conn.execute(
-        """
+        f"""
         SELECT
-            COUNT(*) AS run_count,
-            ROUND(COALESCE(SUM(distance_m), 0) / 1609.344, 1) AS miles,
-            MIN(local_date) AS first_run,
-            MAX(local_date) AS last_run
+            SUM(CASE WHEN activity_type = ? THEN 1 ELSE 0 END) AS run_count,
+            ROUND(
+                SUM(CASE WHEN activity_type = ? THEN distance_m ELSE 0 END) / 1609.344,
+                2
+            ) AS run_miles,
+            MIN(CASE WHEN activity_type = ? THEN local_date END) AS first_run,
+            MAX(CASE WHEN activity_type = ? THEN local_date END) AS last_run,
+            SUM(CASE WHEN activity_type = ? THEN 1 ELSE 0 END) AS walk_count,
+            ROUND(
+                SUM(CASE WHEN activity_type = ? THEN distance_m ELSE 0 END) / 1609.344,
+                2
+            ) AS walk_miles,
+            MIN(CASE WHEN activity_type = ? THEN local_date END) AS first_walk,
+            MAX(CASE WHEN activity_type = ? THEN local_date END) AS last_walk
         FROM workouts
-        WHERE activity_type = ?
+        WHERE activity_type IN ({placeholders})
           AND distance_m IS NOT NULL
           AND distance_m > 0
           AND local_date >= ?
           AND (? IS NULL OR local_date <= ?)
         """,
-        (RUNNING_TYPE, start_date, end_date, end_date),
+        (
+            RUNNING_TYPE,
+            RUNNING_TYPE,
+            RUNNING_TYPE,
+            RUNNING_TYPE,
+            WALKING_TYPE,
+            WALKING_TYPE,
+            WALKING_TYPE,
+            WALKING_TYPE,
+            *COUNTED_ACTIVITY_TYPES,
+            start_date,
+            end_date,
+            end_date,
+        ),
     ).fetchone()
     data = dict(row) if row else {}
+    run_miles = float(data.get("run_miles") or 0)
+    walk_miles = float(data.get("walk_miles") or 0)
+    firsts = [d for d in (data.get("first_run"), data.get("first_walk")) if d]
+    lasts = [d for d in (data.get("last_run"), data.get("last_walk")) if d]
     return {
         "run_count": int(data.get("run_count") or 0),
-        "miles": float(data.get("miles") or 0),
+        "run_miles": run_miles,
         "first_run": data.get("first_run"),
         "last_run": data.get("last_run"),
+        "walk_count": int(data.get("walk_count") or 0),
+        "walk_miles": walk_miles,
+        "first_walk": data.get("first_walk"),
+        "last_walk": data.get("last_walk"),
+        "miles": round(run_miles + walk_miles, 2),
+        "first_activity": min(firsts) if firsts else None,
+        "last_activity": max(lasts) if lasts else None,
+    }
+
+
+def _empty_mileage() -> dict:
+    return {
+        "run_count": 0,
+        "run_miles": None,
+        "first_run": None,
+        "last_run": None,
+        "walk_count": 0,
+        "walk_miles": None,
+        "first_walk": None,
+        "last_walk": None,
+        "miles": None,
+        "first_activity": None,
+        "last_activity": None,
     }
 
 
@@ -304,6 +372,10 @@ def annotate_pair(pair: dict, mileage: dict, lifespan: dict) -> dict:
         out.update(
             {
                 "miles": None,
+                "run_miles": None,
+                "walk_miles": None,
+                "run_count": 0,
+                "walk_count": 0,
                 "typical_miles": lifespan["typical_miles"],
                 "check_wear_miles": lifespan["check_wear_miles"],
                 "upper_miles": lifespan["upper_miles"],
@@ -316,13 +388,14 @@ def annotate_pair(pair: dict, mileage: dict, lifespan: dict) -> dict:
                 "status": "pending",
                 "status_label": "Details pending",
                 "status_detail": pair.get("pending_detail")
-                or (
-                    "Current pair purchase details have not been added yet. "
-                    "This is not a previous pair."
-                ),
-                "run_count": 0,
+                or "Current pair purchase details have not been added yet.",
                 "first_run": None,
                 "last_run": None,
+                "first_walk": None,
+                "last_walk": None,
+                "first_activity": None,
+                "last_activity": None,
+                "stack": None,
             }
         )
         return out
@@ -334,16 +407,37 @@ def annotate_pair(pair: dict, mileage: dict, lifespan: dict) -> dict:
         upper_miles=lifespan["upper_miles"],
     )
     out.update(stats)
+    run_miles = float(mileage.get("run_miles") or 0)
+    walk_miles = float(mileage.get("walk_miles") or 0)
     out["run_count"] = int(mileage.get("run_count") or 0)
+    out["walk_count"] = int(mileage.get("walk_count") or 0)
+    out["run_miles"] = run_miles
+    out["walk_miles"] = walk_miles
     out["first_run"] = mileage.get("first_run")
     out["last_run"] = mileage.get("last_run")
+    out["first_walk"] = mileage.get("first_walk")
+    out["last_walk"] = mileage.get("last_walk")
+    out["first_activity"] = mileage.get("first_activity")
+    out["last_activity"] = mileage.get("last_activity")
+    scale = float(lifespan["upper_miles"])
+    remain = float(stats["remaining_to_typical"])
+    out["stack"] = {
+        "scale_miles": scale,
+        "run_miles": run_miles,
+        "walk_miles": walk_miles,
+        "remain_typical_miles": remain,
+        "run_pct": round(100.0 * run_miles / scale, 2) if scale else 0,
+        "walk_pct": round(100.0 * walk_miles / scale, 2) if scale else 0,
+        "remain_pct": round(100.0 * remain / scale, 2) if scale else 0,
+        "check_pct": round(100.0 * lifespan["check_wear_miles"] / scale, 2) if scale else 0,
+        "typical_pct": round(100.0 * lifespan["typical_miles"] / scale, 2) if scale else 0,
+    }
     if pair.get("retired") or not pair.get("active"):
-        unknown_end = pair.get("retired_date") is None
         extra = "Previous pair — not the current shoes."
-        if unknown_end:
+        if pair.get("retired_date") is None:
             extra += (
-                " Replacement date is unknown, so running miles after this pair "
-                "was replaced may be included in this total."
+                " Replacement date is unknown, so miles after this pair was "
+                "replaced may be included in this total."
             )
         out["status"] = "previous"
         out["status_label"] = "Previous pair"
@@ -362,9 +456,9 @@ def build_shoes_payload(
     pairs = []
     for pair in roster["pairs"]:
         if pair.get("placeholder") or not pair.get("start_date"):
-            mileage = {"miles": None, "run_count": 0, "first_run": None, "last_run": None}
+            mileage = _empty_mileage()
         else:
-            mileage = query_running_mileage(
+            mileage = query_shoe_mileage(
                 conn, pair["start_date"], pair.get("retired_date")
             )
         pairs.append(annotate_pair(pair, mileage, lifespan))
@@ -372,7 +466,7 @@ def build_shoes_payload(
     return {
         "lifespan": lifespan,
         "footnote": roster.get("footnote"),
-        "activity_filter": RUNNING_TYPE,
+        "activity_filter": list(COUNTED_ACTIVITY_TYPES),
         "active": active,
         "pairs": pairs,
     }

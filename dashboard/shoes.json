@@ -4,16 +4,26 @@
     "check_wear_miles": 300,
     "upper_miles": 500,
     "source_url": "https://www.asics.com/us/en-us/blog/how-do-running-shoes-wear-over-time/",
-    "source_note": "ASICS generally recommends replacing running shoes every 300–500 miles, depending on the runner, surface, and wear. They do not publish a precise official mileage rating per model. This dashboard uses 400 miles as the typical midpoint for a daily trainer, 300 as the check-for-wear mark, and 500 as the upper end of that range. Lifespan is an estimate, not a guarantee."
+    "source_note": "ASICS generally recommends replacing running shoes every 300–500 miles, depending on the runner, surface, and wear. They do not publish a precise official mileage rating per model. This dashboard uses 400 miles as the typical midpoint, 300 as the check-for-wear mark, and 500 as the upper end of that range. Lifespan is an estimate, not a guarantee."
   },
-  "footnote": "Only running miles count. Walking, golf, cycling, and other activities are not added — we cannot assume those were done in these shoes.",
+  "footnote": "Running and walking miles count from each pair’s start date. Golf, cycling, hiking, and other activities are not added.",
   "pairs": [
     {
-      "id": "current-placeholder",
+      "id": "gel-kayano-33-2026-08-01",
       "active": true,
-      "placeholder": true,
-      "display_name": "Current pair — details pending",
-      "pending_detail": "A newer pair replaced the April 2025 Gel-Cumulus 26. Model, color, purchase date, and photo have not been added yet. Mileage will count running workouts from the new start date once that is recorded in dashboard/shoes.json. This placeholder is not the Cumulus 26."
+      "brand": "ASICS",
+      "model": "GEL-KAYANO 33",
+      "display_name": "ASICS GEL-KAYANO 33",
+      "gender": "Men's",
+      "purchased": "2026-08-01",
+      "start_date": "2026-08-01",
+      "retired_date": null,
+      "color": null,
+      "size": null,
+      "photo": "dashboard/assets/asics-gel-kayano-33-black.jpg",
+      "photo_alt": "ASICS GEL-KAYANO 33 official product photo (stand-in; colorway unconfirmed)",
+      "photo_stand_in": true,
+      "photo_note": "Official product photo (stand-in; colorway unconfirmed)"
     },
     {
       "id": "gel-cumulus-26-black-safety-yellow",
@@ -28,13 +38,13 @@
       "sku": "1011B792-006",
       "purchased": "2025-04-16",
       "start_date": "2025-04-16",
-      "retired_date": null,
+      "retired_date": "2026-07-31",
       "retailer": "FleetFeet.com",
       "order_number": "152692880",
       "price_usd": 110,
       "photo": "dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg",
       "photo_alt": "Men's ASICS Gel-Cumulus 26 in Black / Safety Yellow, side profile",
-      "notes": "Previous pair. Purchased 2025-04-16 on FleetFeet.com (order 152692880), shipped the same day. Replaced by a newer pair whose purchase details are still pending. Do not treat as current. Price was $110 before shipping and tax. Replacement date unknown, so miles since purchase may include runs in the next shoes."
+      "notes": "Previous pair. Purchased 2025-04-16 on FleetFeet.com (order 152692880). Retired the day before the 2026-08-01 GEL-KAYANO 33 started. Price was $110 before shipping and tax. Not the current shoes."
     }
   ]
 }

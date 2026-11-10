@@ -29,7 +29,7 @@ from dashboard.shoes import (  # noqa: E402
     lifespan_stats,
     load_shoes_config,
     normalize_shoes_config,
-    query_running_mileage,
+    query_shoe_mileage,
 )
 from dashboard.training_config import (  # noqa: E402
     CARDIO_MAX_HR_CEILING,
@@ -321,16 +321,27 @@ class DashboardPayloadTest(unittest.TestCase):
 
     def test_shoes_section_present(self):
         shoes = self.data["shoes"]
-        self.assertTrue(shoes["active"]["placeholder"])
-        self.assertEqual(shoes["active"]["status"], "pending")
-        self.assertIsNone(shoes["active"]["miles"])
-        self.assertNotEqual(shoes["active"]["id"], "gel-cumulus-26-black-safety-yellow")
-        self.assertNotIn("Gel-Cumulus 26", shoes["active"]["display_name"])
+        active = shoes["active"]
+        self.assertEqual(active["id"], "gel-kayano-33-2026-08-01")
+        self.assertEqual(active["brand"], "ASICS")
+        self.assertEqual(active["model"], "GEL-KAYANO 33")
+        self.assertNotIn("32", active["model"])
+        self.assertNotIn("Cumulus", active["model"])
+        self.assertNotIn("Nimbus", active["model"])
+        self.assertTrue(active["photo"].endswith("asics-gel-kayano-33-black.jpg"))
+        self.assertNotIn("cumulus", active["photo"])
+        self.assertTrue(active["photo_stand_in"])
+        self.assertFalse(active.get("color"))
+        self.assertFalse(active.get("size"))
+        self.assertGreater(active["miles"], 0)
+        self.assertGreater(active["run_miles"], 0)
+        self.assertIn("stack", active)
         previous = next(p for p in shoes["pairs"] if p["id"] == "gel-cumulus-26-black-safety-yellow")
         self.assertTrue(previous["retired"])
         self.assertFalse(previous["active"])
-        self.assertEqual(shoes["activity_filter"], "HKWorkoutActivityTypeRunning")
-        self.assertIn("running", shoes["footnote"].lower())
+        self.assertIn("HKWorkoutActivityTypeRunning", shoes["activity_filter"])
+        self.assertIn("HKWorkoutActivityTypeWalking", shoes["activity_filter"])
+        self.assertIn("walking", shoes["footnote"].lower())
 
     def test_sparse_cardio_has_no_headline(self):
         conn = sqlite3.connect(":memory:")
@@ -392,24 +403,40 @@ CUMULUS = {
 
 
 class ShoeTrackerTest(unittest.TestCase):
-    def test_default_config_placeholder_not_old_cumulus(self):
+    def test_default_config_seeds_aug_2026_kayano_33(self):
         cfg = load_shoes_config()
         self.assertEqual(cfg["lifespan"]["typical_miles"], 400)
         self.assertEqual(cfg["lifespan"]["check_wear_miles"], 300)
         self.assertEqual(cfg["lifespan"]["upper_miles"], 500)
         self.assertIn("300", cfg["lifespan"]["source_note"])
-        self.assertTrue(cfg["pairs"])
         active = next(p for p in cfg["pairs"] if p["active"])
-        self.assertTrue(active["placeholder"])
-        self.assertEqual(active["id"], "current-placeholder")
-        self.assertIsNone(active["start_date"])
+        self.assertEqual(active["id"], "gel-kayano-33-2026-08-01")
+        self.assertEqual(active["brand"], "ASICS")
+        self.assertEqual(active["model"], "GEL-KAYANO 33")
+        self.assertEqual(active["start_date"], "2026-08-01")
+        self.assertEqual(active["display_name"], "ASICS GEL-KAYANO 33")
+        self.assertTrue(active["photo_stand_in"])
+        self.assertIn("kayano-33", active["photo"])
+        self.assertNotIn("cumulus", active["photo"])
+        self.assertFalse(active.get("color"))
+        self.assertFalse(active.get("size"))
+        blob = json.dumps(active).lower()
+        self.assertNotIn("gel-cumulus", blob)
+        self.assertNotIn("gel-nimbus", blob)
+        self.assertNotIn("kayano 32", blob)
+        self.assertNotIn("black/black", blob)
         previous = next(p for p in cfg["pairs"] if p["id"] == "gel-cumulus-26-black-safety-yellow")
         self.assertFalse(previous["active"])
         self.assertTrue(previous["retired"])
-        self.assertEqual(previous["start_date"], "2025-04-16")
-        self.assertEqual(previous["sku"], "1011B792-006")
+        self.assertEqual(previous["retired_date"], "2026-07-31")
+        self.assertIsNone(active.get("sku"))
+        self.assertNotIn("1011C167", json.dumps(active))
         self.assertNotIn("address", json.dumps(cfg).lower())
         self.assertNotIn("credit card", json.dumps(cfg).lower())
+        alt = (active.get("photo_alt") or "").lower()
+        self.assertIn("stand-in", alt)
+        self.assertNotIn("black/black", alt)
+        self.assertNotIn("black / black", alt)
 
     def test_config_rejects_missing_fields_and_bad_dates(self):
         with self.assertRaises(ShoeConfigError):
@@ -451,19 +478,20 @@ class ShoeTrackerTest(unittest.TestCase):
         _workout(conn, "first", date(2025, 4, 20), 5.0)
         _workout(conn, "later", date(2026, 11, 4), 4.0)
         conn.commit()
-        miles = query_running_mileage(conn, "2025-04-16")
+        miles = query_shoe_mileage(conn, "2025-04-16")
         self.assertEqual(miles["run_count"], 3)
-        self.assertAlmostEqual(miles["miles"], 12.0, places=1)
+        self.assertAlmostEqual(miles["run_miles"], 12.0, places=1)
         self.assertEqual(miles["first_run"], "2025-04-16")
         self.assertEqual(miles["last_run"], "2026-11-04")
         conn.close()
 
-    def test_running_only_excludes_walk_golf_cycle_and_zero_distance(self):
+    def test_counts_run_and_walk_excludes_golf_cycle_hike(self):
         conn = _empty_conn()
         _workout(conn, "run_ok", date(2025, 5, 1), 8.0)
         _workout(conn, "walk", date(2025, 5, 2), 12.0, "HKWorkoutActivityTypeWalking")
         _workout(conn, "golf", date(2025, 5, 3), 6.0, "HKWorkoutActivityTypeGolf")
         _workout(conn, "ride", date(2025, 5, 4), 20.0, "HKWorkoutActivityTypeCycling")
+        _workout(conn, "hike", date(2025, 5, 4), 9.0, "HKWorkoutActivityTypeHiking")
         _workout(conn, "zero", date(2025, 5, 5), 0.0)
         conn.execute(
             """
@@ -476,9 +504,24 @@ class ShoeTrackerTest(unittest.TestCase):
             """
         )
         conn.commit()
-        miles = query_running_mileage(conn, "2025-04-16")
+        miles = query_shoe_mileage(conn, "2025-04-16")
         self.assertEqual(miles["run_count"], 1)
-        self.assertAlmostEqual(miles["miles"], 8.0, places=1)
+        self.assertEqual(miles["walk_count"], 1)
+        self.assertAlmostEqual(miles["run_miles"], 8.0, places=1)
+        self.assertAlmostEqual(miles["walk_miles"], 12.0, places=1)
+        self.assertAlmostEqual(miles["miles"], 20.0, places=1)
+        conn.close()
+
+    def test_walk_before_start_date_is_excluded(self):
+        conn = _empty_conn()
+        _workout(conn, "early_walk", date(2026, 7, 31), 5.0, "HKWorkoutActivityTypeWalking")
+        _workout(conn, "ok_walk", date(2026, 8, 2), 3.0, "HKWorkoutActivityTypeWalking")
+        _workout(conn, "ok_run", date(2026, 8, 3), 4.0)
+        conn.commit()
+        miles = query_shoe_mileage(conn, "2026-08-01")
+        self.assertEqual(miles["walk_count"], 1)
+        self.assertEqual(miles["run_count"], 1)
+        self.assertAlmostEqual(miles["miles"], 7.0, places=1)
         conn.close()
 
     def test_retired_date_stops_counting(self):
@@ -486,7 +529,7 @@ class ShoeTrackerTest(unittest.TestCase):
         _workout(conn, "in", date(2025, 6, 1), 10.0)
         _workout(conn, "out", date(2025, 7, 1), 10.0)
         conn.commit()
-        miles = query_running_mileage(conn, "2025-04-16", "2025-06-15")
+        miles = query_shoe_mileage(conn, "2025-04-16", "2025-06-15")
         self.assertEqual(miles["run_count"], 1)
         self.assertAlmostEqual(miles["miles"], 10.0, places=1)
         conn.close()
@@ -541,13 +584,17 @@ class ShoeTrackerTest(unittest.TestCase):
         )
         shoes = data["shoes"]
         self.assertEqual(shoes["active"]["id"], "gel-cumulus-26-black-safety-yellow")
-        self.assertAlmostEqual(shoes["active"]["miles"], 9.7, places=1)
+        self.assertAlmostEqual(shoes["active"]["run_miles"], 9.7, places=1)
+        self.assertAlmostEqual(shoes["active"]["walk_miles"], 30.0, places=1)
+        self.assertAlmostEqual(shoes["active"]["miles"], 39.7, places=1)
         self.assertEqual(shoes["active"]["run_count"], 2)
+        self.assertEqual(shoes["active"]["walk_count"], 1)
         self.assertEqual(shoes["active"]["status"], "fresh")
+        self.assertAlmostEqual(shoes["active"]["stack"]["run_miles"], 9.7, places=1)
         old = next(p for p in shoes["pairs"] if p["id"] == "old-pair")
         self.assertFalse(old["active"])
         self.assertAlmostEqual(old["miles"], 50.0, places=1)
-        self.assertIn("running", shoes["footnote"].lower())
+        self.assertIn("walking", shoes["footnote"].lower())
         conn.close()
 
     def test_placeholder_skips_mileage(self):
@@ -577,6 +624,60 @@ class ShoeTrackerTest(unittest.TestCase):
         self.assertFalse(prev["active"])
         self.assertAlmostEqual(prev["miles"], 10.0, places=1)
         conn.close()
+
+    def test_production_sanity_shape_run_and_walk_totals(self):
+        """Fixture shaped like the 2026-11-09 production check (not hardcoded in UI)."""
+        conn = _empty_conn()
+        run_total, walk_total = 99.64, 85.75
+        for i in range(29):
+            day = date(2026, 8, 3) if i == 0 else date(2026, 11, 4) if i == 28 else date(2026, 8, 10)
+            _workout(conn, f"r{i}", day, run_total / 29)
+        for i in range(23):
+            day = date(2026, 8, 2) if i == 0 else date(2026, 10, 25) if i == 22 else date(2026, 9, 1)
+            _workout(conn, f"w{i}", day, walk_total / 23, "HKWorkoutActivityTypeWalking")
+        conn.commit()
+        miles = query_shoe_mileage(conn, "2026-08-01")
+        self.assertEqual(miles["run_count"], 29)
+        self.assertEqual(miles["walk_count"], 23)
+        self.assertAlmostEqual(miles["run_miles"], 99.64, places=1)
+        self.assertAlmostEqual(miles["walk_miles"], 85.75, places=1)
+        self.assertAlmostEqual(miles["miles"], 185.39, places=1)
+        self.assertEqual(miles["first_run"], "2026-08-03")
+        self.assertEqual(miles["last_run"], "2026-11-04")
+        self.assertEqual(miles["first_walk"], "2026-08-02")
+        self.assertEqual(miles["last_walk"], "2026-10-25")
+        conn.close()
+
+    def test_kayano_photo_is_local_stand_in_not_cumulus(self):
+        photo = REPO / "dashboard" / "assets" / "asics-gel-kayano-33-black.jpg"
+        self.assertTrue(photo.is_file())
+        self.assertGreater(photo.stat().st_size, 50_000)
+        attr = (REPO / "dashboard" / "assets" / "ATTRIBUTION.md").read_text(encoding="utf-8")
+        self.assertIn("https://www.asics.com/us/en-us/gel-kayano-33/p/ANA_1011C167-001.html", attr)
+        self.assertIn("1011C167_001_SL_LT_GLB", attr)
+        self.assertIn("stand-in", attr.lower())
+        page = (REPO / "index.html").read_text(encoding="utf-8")
+        self.assertIn("GEL-KAYANO 33", page)
+        self.assertIn("asics-gel-kayano-33-black.jpg", page)
+        self.assertIn("Colorway unconfirmed", page)
+        self.assertNotIn("Black/Black", page)
+        self.assertNotIn("Kayano 32", page)
+
+    def test_model_field_optional_in_config(self):
+        cfg = normalize_shoes_config(
+            {
+                "pairs": [
+                    {
+                        "id": "asics-2026-08-01",
+                        "brand": "ASICS",
+                        "start_date": "2026-08-01",
+                        "purchased": "2026-08-01",
+                    }
+                ]
+            }
+        )
+        self.assertIsNone(cfg["pairs"][0]["model"])
+        self.assertEqual(cfg["pairs"][0]["display_name"], "ASICS (model unknown)")
 
 
 if __name__ == "__main__":

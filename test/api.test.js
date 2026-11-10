@@ -98,14 +98,18 @@ test("GET / serves the dashboard", async () => {
   assert.match(res.text, /Training Dashboard/);
   assert.match(res.text, /Current shoes/);
   assert.match(res.text, /data-tab="shoes"/);
+  assert.match(res.text, /GEL-KAYANO 33/);
+  assert.doesNotMatch(res.text, /Black\/Black/);
 });
 
-test("GET /dashboard/assets serves the shoe photo", async () => {
-  const res = await request(base, "/dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg");
-  assert.equal(res.status, 200);
-  const type = res.headers.get("content-type") || "";
-  assert.match(type, /image\/jpeg/);
-  assert.ok(res.text.length > 1000);
+test("GET /dashboard/assets serves shoe photos", async () => {
+  const kayano = await request(base, "/dashboard/assets/asics-gel-kayano-33-black.jpg");
+  assert.equal(kayano.status, 200);
+  assert.match(kayano.headers.get("content-type") || "", /image\/jpeg/);
+  assert.ok(kayano.text.length > 1000);
+  const cumulus = await request(base, "/dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg");
+  assert.equal(cumulus.status, 200);
+  assert.match(cumulus.headers.get("content-type") || "", /image\/jpeg/);
 });
 
 test("GET /health is public", async () => {
