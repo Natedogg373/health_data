@@ -9,21 +9,16 @@
   "footnote": "Running and walking miles count from each pair’s start date. Golf, cycling, hiking, and other activities are not added.",
   "pairs": [
     {
-      "id": "gel-kayano-33-2026-08-01",
+      "id": "asics-2026-08-01",
       "active": true,
       "brand": "ASICS",
-      "model": "GEL-KAYANO 33",
-      "display_name": "ASICS GEL-KAYANO 33",
-      "gender": "Men's",
+      "model": null,
       "purchased": "2026-08-01",
       "start_date": "2026-08-01",
       "retired_date": null,
       "color": null,
       "size": null,
-      "photo": "dashboard/assets/asics-gel-kayano-33-black.jpg",
-      "photo_alt": "ASICS GEL-KAYANO 33 official product photo (stand-in; colorway unconfirmed)",
-      "photo_stand_in": true,
-      "photo_note": "Official product photo (stand-in; colorway unconfirmed)"
+      "photo": null
     },
     {
       "id": "gel-cumulus-26-black-safety-yellow",
@@ -44,7 +39,7 @@
       "price_usd": 110,
       "photo": "dashboard/assets/asics-gel-cumulus-26-black-safety-yellow.jpg",
       "photo_alt": "Men's ASICS Gel-Cumulus 26 in Black / Safety Yellow, side profile",
-      "notes": "Previous pair. Purchased 2025-04-16 on FleetFeet.com (order 152692880). Retired the day before the 2026-08-01 GEL-KAYANO 33 started. Price was $110 before shipping and tax. Not the current shoes."
+      "notes": "Previous pair. Purchased 2025-04-16 on FleetFeet.com (order 152692880). Retired the day before the 2026-08-01 ASICS pair started. Price was $110 before shipping and tax. Not the current shoes."
     }
   ]
 }

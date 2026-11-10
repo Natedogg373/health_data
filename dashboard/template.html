@@ -694,7 +694,7 @@
       const sizeBits = [pair.gender, pair.size ? `size ${pair.size}` : null, pair.width ? `width ${pair.width}` : null].filter(Boolean).join(" · ");
       const colorLine = pair.color
         ? pair.color
-        : (pair.photo_stand_in || (pair.model && !pair.color) ? "Colorway unconfirmed" : "");
+        : (pending ? "" : "Colorway unconfirmed");
       const bought = pending
         ? "Purchase date not recorded yet"
         : pair.purchased
@@ -970,7 +970,7 @@
           return `
           <tr>
             <td>${esc(pair.display_name)}${badge}</td>
-            <td>${esc(pair.color || (pair.photo_stand_in ? "unconfirmed" : "—"))}</td>
+            <td>${esc(pair.color || (pair.placeholder ? "—" : "unconfirmed"))}</td>
             <td>${esc(pair.start_date || "—")}</td>
             <td>${esc(pair.retired_date || (pair.retired ? "unknown" : "—"))}</td>
             <td class="num">${pair.placeholder ? "—" : `${pair.run_count || 0} / ${pair.walk_count || 0}`}</td>

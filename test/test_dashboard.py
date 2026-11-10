@@ -322,17 +322,17 @@ class DashboardPayloadTest(unittest.TestCase):
     def test_shoes_section_present(self):
         shoes = self.data["shoes"]
         active = shoes["active"]
-        self.assertEqual(active["id"], "gel-kayano-33-2026-08-01")
+        self.assertEqual(active["id"], "asics-2026-08-01")
         self.assertEqual(active["brand"], "ASICS")
-        self.assertEqual(active["model"], "GEL-KAYANO 33")
-        self.assertNotIn("32", active["model"])
-        self.assertNotIn("Cumulus", active["model"])
-        self.assertNotIn("Nimbus", active["model"])
-        self.assertTrue(active["photo"].endswith("asics-gel-kayano-33-black.jpg"))
-        self.assertNotIn("cumulus", active["photo"])
-        self.assertTrue(active["photo_stand_in"])
+        self.assertFalse(active.get("model"))
+        self.assertEqual(active["display_name"], "ASICS (model unknown)")
+        self.assertIsNone(active.get("photo"))
+        self.assertFalse(active.get("photo_stand_in"))
         self.assertFalse(active.get("color"))
         self.assertFalse(active.get("size"))
+        blob = json.dumps(active).lower()
+        self.assertNotRegex(blob, r"gel[- ]?(kayano|cumulus|nimbus)")
+        self.assertNotIn("kayano", blob)
         self.assertGreater(active["miles"], 0)
         self.assertGreater(active["run_miles"], 0)
         self.assertIn("stack", active)
@@ -403,40 +403,32 @@ CUMULUS = {
 
 
 class ShoeTrackerTest(unittest.TestCase):
-    def test_default_config_seeds_aug_2026_kayano_33(self):
+    def test_default_config_seeds_aug_2026_asics_not_gel(self):
         cfg = load_shoes_config()
         self.assertEqual(cfg["lifespan"]["typical_miles"], 400)
         self.assertEqual(cfg["lifespan"]["check_wear_miles"], 300)
         self.assertEqual(cfg["lifespan"]["upper_miles"], 500)
         self.assertIn("300", cfg["lifespan"]["source_note"])
         active = next(p for p in cfg["pairs"] if p["active"])
-        self.assertEqual(active["id"], "gel-kayano-33-2026-08-01")
+        self.assertEqual(active["id"], "asics-2026-08-01")
         self.assertEqual(active["brand"], "ASICS")
-        self.assertEqual(active["model"], "GEL-KAYANO 33")
+        self.assertFalse(active.get("model"))
         self.assertEqual(active["start_date"], "2026-08-01")
-        self.assertEqual(active["display_name"], "ASICS GEL-KAYANO 33")
-        self.assertTrue(active["photo_stand_in"])
-        self.assertIn("kayano-33", active["photo"])
-        self.assertNotIn("cumulus", active["photo"])
+        self.assertEqual(active["display_name"], "ASICS (model unknown)")
+        self.assertIsNone(active.get("photo"))
+        self.assertFalse(active.get("photo_stand_in"))
         self.assertFalse(active.get("color"))
         self.assertFalse(active.get("size"))
         blob = json.dumps(active).lower()
-        self.assertNotIn("gel-cumulus", blob)
-        self.assertNotIn("gel-nimbus", blob)
-        self.assertNotIn("kayano 32", blob)
-        self.assertNotIn("black/black", blob)
+        self.assertNotRegex(blob, r"gel[- ]?(kayano|cumulus|nimbus)")
+        self.assertNotIn("kayano", blob)
+        self.assertNotIn("nimbus", blob)
         previous = next(p for p in cfg["pairs"] if p["id"] == "gel-cumulus-26-black-safety-yellow")
         self.assertFalse(previous["active"])
         self.assertTrue(previous["retired"])
         self.assertEqual(previous["retired_date"], "2026-07-31")
-        self.assertIsNone(active.get("sku"))
-        self.assertNotIn("1011C167", json.dumps(active))
         self.assertNotIn("address", json.dumps(cfg).lower())
         self.assertNotIn("credit card", json.dumps(cfg).lower())
-        alt = (active.get("photo_alt") or "").lower()
-        self.assertIn("stand-in", alt)
-        self.assertNotIn("black/black", alt)
-        self.assertNotIn("black / black", alt)
 
     def test_config_rejects_missing_fields_and_bad_dates(self):
         with self.assertRaises(ShoeConfigError):
@@ -648,20 +640,18 @@ class ShoeTrackerTest(unittest.TestCase):
         self.assertEqual(miles["last_walk"], "2026-10-25")
         conn.close()
 
-    def test_kayano_photo_is_local_stand_in_not_cumulus(self):
-        photo = REPO / "dashboard" / "assets" / "asics-gel-kayano-33-black.jpg"
-        self.assertTrue(photo.is_file())
-        self.assertGreater(photo.stat().st_size, 50_000)
+    def test_current_pair_has_no_product_photo(self):
+        kayano = REPO / "dashboard" / "assets" / "asics-gel-kayano-33-black.jpg"
+        self.assertFalse(kayano.exists())
         attr = (REPO / "dashboard" / "assets" / "ATTRIBUTION.md").read_text(encoding="utf-8")
-        self.assertIn("https://www.asics.com/us/en-us/gel-kayano-33/p/ANA_1011C167-001.html", attr)
-        self.assertIn("1011C167_001_SL_LT_GLB", attr)
-        self.assertIn("stand-in", attr.lower())
+        self.assertNotIn("kayano-33", attr.lower())
+        self.assertIn("previous", attr.lower())
         page = (REPO / "index.html").read_text(encoding="utf-8")
-        self.assertIn("GEL-KAYANO 33", page)
-        self.assertIn("asics-gel-kayano-33-black.jpg", page)
+        self.assertIn("ASICS (model unknown)", page)
+        self.assertIn("No photo until the model is known", page)
+        self.assertNotIn("GEL-KAYANO 33", page)
+        self.assertNotIn("asics-gel-kayano-33-black.jpg", page)
         self.assertIn("Colorway unconfirmed", page)
-        self.assertNotIn("Black/Black", page)
-        self.assertNotIn("Kayano 32", page)
 
     def test_model_field_optional_in_config(self):
         cfg = normalize_shoes_config(
